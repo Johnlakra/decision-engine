@@ -15,7 +15,8 @@ coverage/
 .expo/
 data/*.db
 data/exports/
-models/
+/models/
+/services/laya/models/
 *.log
 .DS_Store
 .claude/settings.local.json
