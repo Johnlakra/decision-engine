@@ -19,3 +19,9 @@ models/
 *.log
 .DS_Store
 .claude/settings.local.json
+secrets/
+.coverage
+htmlcov/
+.venv/
+.mypy_cache/
+.ruff_cache/
