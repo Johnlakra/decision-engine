@@ -1,0 +1,49 @@
+# Keep-or-skip for news. Laya decides keep/skip; the LLM only summarises kept stories.
+# The reader's interests come from tenant_settings.interests (editable in Settings), appended to the prompt.
+name: news_radar
+label: News radar
+description: a news article, blog post, newsletter, release note or announcement from a feed or website
+enabled: true
+version: 1
+languages: [en, hi]
+sensitivity: public
+triage:
+  min_confidence: 0.6
+  questions:
+    keep:
+      type: choice
+      instructions: Should this news story be kept for the reader?
+      criteria:
+        A: "keep - a concrete, legitimate, time-relevant development the reader can act on or must know: a release, open beta or waitlist, free credits, deadline, security incident, regulation change, confirmed listing"
+        B: "skip - opinion, hype, price prediction, sponsored post or press release, rumour, listicle, recap, or nothing to act on"
+    topic:
+      type: choice
+      instructions: What is this story mainly about?
+      criteria:
+        ai: "AI models, tools, APIs, research"
+        crypto: "crypto, blockchain, exchanges, tokens"
+        india_tech: "Indian tech policy, startups, digital public infrastructure"
+        agri: "agriculture, farming, mandi prices, rural policy"
+        other: "anything else"
+  discard_if:
+    - {question: keep, choice: B, min_confidence: 0.85}
+extract:
+  type: object
+  properties:
+    what_happened: {type: string, description: "one sentence"}
+    action: {type: string, description: "the single next step for the reader, or empty"}
+    deadline: {type: string}
+    official_link: {type: string, description: "only if present in the item text"}
+tools: []
+prompt: |
+  Summarise a kept news story for ONE reader in at most 2 sentences, then give options:
+  "Save and act" (with the concrete action), "Read later", "Not interested". Recommend one using the
+  reader's interests below. Mark it urgent only for security incidents affecting the reader or hard deadlines
+  within 72 hours. Never invent links; use only links present in the item.
+options_hint: ["Save and act", "Read later", "Not interested"]
+actions: [archive, remind, notify, create_task, webhook]
+autonomy: auto
+auto_actions: [archive]          # "Not interested" can be applied automatically; everything else is shown
+notify: {urgent_ping: true, digest: true, min_urgency_for_ping: 2}
+few_shot: 8
+evals: evals/news_radar.jsonl

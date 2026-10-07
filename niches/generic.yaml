@@ -1,0 +1,27 @@
+# Fallback niche: anything that needs a decision but fits no other niche, or low-confidence routing.
+name: generic
+label: General
+description: anything else that needs the owner to decide or act and does not clearly belong to another niche
+enabled: true
+version: 1
+languages: [en, hi, pa]
+sensitivity: private
+triage:
+  min_confidence: 0.0          # the fallback always accepts
+extract:
+  type: object
+  properties:
+    deadline: {type: string, description: "ISO date-time if a deadline is stated, else empty"}
+    asked_of_owner: {type: string, description: "what the item asks the owner to do, one line"}
+    amount_inr: {type: number}
+prompt: |
+  You help ONE person decide what to do about one incoming item. Offer 2 to 4 realistic options,
+  recommend one, and explain in at most 3 short sentences using only facts present in the item
+  or tool results. If information is missing, one option must be "ask for the missing detail".
+  Never invent names, dates, prices or links. If it looks like a scam, recommend ignoring it.
+options_hint: ["Do it now", "Schedule it", "Ask for more details", "Ignore"]
+actions: [archive, snooze, remind, create_task, notify]
+autonomy: ask
+notify: {urgent_ping: true, digest: true, min_urgency_for_ping: 2}
+few_shot: 6
+evals: evals/generic.jsonl

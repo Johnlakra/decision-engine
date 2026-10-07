@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-engine/schemas/ingest_item.schema.json",
+  "title": "IngestItem",
+  "description": "Body of POST /v1/items (docs/API.md).",
+  "type": "object",
+  "required": ["source", "source_ref", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "source": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{1,39}$"},
+    "source_ref": {"type": "string", "minLength": 1, "maxLength": 300},
+    "received_at": {"type": "string", "format": "date-time"},
+    "payload": {"type": ["object", "array", "string"]},
+    "hints": {"type": "object", "additionalProperties": false, "properties": {
+      "niche": {"type": "string"}, "language": {"type": "string"},
+      "sensitivity": {"enum": ["public", "private"]},
+      "title": {"type": "string", "maxLength": 500}, "body": {"type": "string", "maxLength": 50000},
+      "url": {"type": "string", "format": "uri"}, "sender": {"type": "string"}}},
+    "callback_url": {"type": "string", "format": "uri"}
+  }
+}

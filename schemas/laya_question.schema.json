@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-engine/schemas/laya_question.schema.json",
+  "title": "LayaQuestion",
+  "description": "One Laya question, exactly as laya-serve accepts it (docs/LAYA.md). Prefer `choice` with neutral keys (A/B) over `noul`.",
+  "type": "object",
+  "required": ["type", "instructions", "criteria"],
+  "properties": {
+    "type": {"enum": ["choice", "score", "noul"]},
+    "instructions": {"type": "string", "minLength": 3, "maxLength": 400},
+    "criteria": {
+      "oneOf": [
+        {"type": "object", "minProperties": 2, "maxProperties": 20,
+         "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 300}},
+        {"type": "array", "minItems": 2, "maxItems": 7, "items": {"type": "string", "minLength": 1}}
+      ]
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"type": {"const": "score"}}}, "then": {"properties": {"criteria": {"type": "array"}}}},
+    {"if": {"properties": {"type": {"const": "choice"}}}, "then": {"properties": {"criteria": {"type": "object"}}}}
+  ],
+  "additionalProperties": false
+}

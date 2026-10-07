@@ -1,0 +1,34 @@
+# Phase 1 demo niche: needs no connectors and no private data.
+name: tech_stack
+label: Tech stack advisor
+description: a software project brief or question asking which technologies, frameworks, hosting or database to use
+enabled: true
+version: 1
+languages: [en, hi]
+sensitivity: public
+triage:
+  min_confidence: 0.7
+extract:
+  type: object
+  properties:
+    project_type: {type: string, enum: [web_app, mobile_app, api, data_pipeline, ai_app, desktop, other]}
+    team_size: {type: integer}
+    team_skills: {type: array, items: {type: string}}
+    budget_inr_month: {type: number}
+    users_expected: {type: integer}
+    offline_needed: {type: boolean}
+    languages_needed: {type: array, items: {type: string}}
+    deadline_weeks: {type: integer}
+    constraints: {type: array, items: {type: string}}
+tools: [stack_catalog.shortlist, stack_catalog.free_tiers]
+prompt: |
+  You are a pragmatic senior architect advising a small Indian team. From the extracted requirements
+  and the shortlisted stacks (tool results), present 2 to 4 stack options. For each give: what it is,
+  why it fits, the main risk, and monthly cost at the stated scale (₹, free tiers first). Prefer what
+  the team already knows. Recommend one. Keep the rationale to 3 sentences; put details in the option labels.
+  Never recommend a technology that is not in the shortlist unless you say it is outside the catalog.
+actions: [create_task, notify, webhook]
+autonomy: suggest
+notify: {urgent_ping: false, digest: false}
+few_shot: 4
+evals: evals/tech_stack.jsonl

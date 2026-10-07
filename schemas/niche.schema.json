@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-engine/schemas/niche.schema.json",
+  "title": "Niche",
+  "description": "A decision niche. Config, not code: tools and actions are referenced by registry name.",
+  "type": "object",
+  "required": ["name", "label", "description", "enabled", "autonomy", "prompt", "actions"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,39}$"},
+    "label": {"type": "string", "maxLength": 60},
+    "description": {"type": "string", "minLength": 10, "maxLength": 300,
+      "description": "Shown to Laya as this niche's routing criterion: what items belong here."},
+    "enabled": {"type": "boolean"},
+    "version": {"type": "integer", "minimum": 1, "default": 1},
+    "languages": {"type": "array", "items": {"type": "string"}, "default": ["en"]},
+    "sensitivity": {"enum": ["public", "private"], "default": "public"},
+    "triage": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "min_confidence": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.75},
+        "questions": {"type": "object", "maxProperties": 8,
+          "additionalProperties": {"$ref": "laya_question.schema.json"}},
+        "discard_if": {"type": "array", "items": {
+          "type": "object", "required": ["question", "choice", "min_confidence"], "additionalProperties": false,
+          "properties": {"question": {"type": "string"}, "choice": {"type": "string"},
+                         "min_confidence": {"type": "number", "minimum": 0.5, "maximum": 1}}}}
+      }
+    },
+    "extract": {"type": "object", "description": "JSON Schema (object) of entities the LLM extracts for this niche.",
+      "required": ["type", "properties"], "properties": {"type": {"const": "object"}, "properties": {"type": "object"}}},
+    "tools": {"type": "array", "items": {"type": "string", "pattern": "^[a-z_]+(\\.[a-z_]+)*$"}, "default": []},
+    "prompt": {"type": "string", "minLength": 40, "description": "System prompt for the decide step. Content is always passed separately as fenced data."},
+    "options_hint": {"type": "array", "items": {"type": "string"}, "maxItems": 6},
+    "actions": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "autonomy": {"enum": ["suggest", "ask", "auto"]},
+    "auto_actions": {"type": "array", "items": {"type": "string"}, "default": []},
+    "expert_review": {"type": "object", "additionalProperties": false, "properties": {
+      "always": {"type": "boolean", "default": false},
+      "when_topics": {"type": "array", "items": {"type": "string"}}}},
+    "notify": {"type": "object", "additionalProperties": false, "properties": {
+      "urgent_ping": {"type": "boolean", "default": true},
+      "digest": {"type": "boolean", "default": true},
+      "min_urgency_for_ping": {"type": "integer", "minimum": 0, "maximum": 2, "default": 2}}},
+    "few_shot": {"type": "integer", "minimum": 0, "maximum": 12, "default": 6},
+    "llm": {"type": "object", "additionalProperties": false, "properties": {
+      "purpose_decide": {"type": "string", "default": "decide"},
+      "max_tokens": {"type": "integer", "default": 800},
+      "prefer": {"type": "array", "items": {"type": "string"}}}},
+    "steps": {"type": "array", "items": {"type": "string"}, "description": "Optional custom registered graph steps, in order, replacing extract→tools→decide."},
+    "evals": {"type": "string", "description": "Path to evals/<name>.jsonl"}
+  },
+  "allOf": [
+    {"if": {"properties": {"autonomy": {"const": "auto"}}},
+     "then": {"required": ["auto_actions"], "properties": {"auto_actions": {"minItems": 1}}}}
+  ]
+}

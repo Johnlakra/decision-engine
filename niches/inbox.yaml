@@ -1,0 +1,48 @@
+# Personal email and DMs. Private by default: only private_ok LLM providers (Ollama / allowed paid tier).
+name: inbox
+label: Inbox and DMs
+description: a personal or work email or direct message written to the owner by a person or organisation
+enabled: true
+version: 1
+languages: [en, hi, pa]
+sensitivity: private
+triage:
+  min_confidence: 0.7
+  questions:
+    needs_reply:
+      type: choice
+      instructions: Does the sender expect a reply or action from the owner?
+      criteria:
+        A: "yes - a question, request, invitation, approval, payment or deadline addressed to the owner"
+        B: "no - newsletter, notification, receipt, promotion, automated message or FYI"
+    category:
+      type: choice
+      instructions: What kind of message is this?
+      criteria:
+        work: "work, clients, team, projects"
+        ministry: "church, youth ministry, events, volunteering"
+        personal: "family and friends"
+        finance: "bills, payments, bank, invoices"
+        promo: "marketing, offers, newsletters"
+        other: "anything else"
+extract:
+  type: object
+  properties:
+    request: {type: string, description: "what the sender wants, one line"}
+    deadline: {type: string}
+    meeting_time: {type: string}
+    amount_inr: {type: number}
+    people: {type: array, items: {type: string}}
+tools: []
+prompt: |
+  Help the owner handle one message. Options are usually: reply (with a short draft in the sender's
+  language and the owner's plain, warm tone), schedule/remind, delegate, archive. Drafts are suggestions only;
+  never promise money, dates or commitments not already stated by the owner. Keep drafts under 120 words.
+  If the message asks for passwords, OTPs, payments to new accounts or urgent gift cards, mark it as a likely
+  scam and recommend not replying.
+options_hint: ["Reply now", "Remind me later", "Archive"]
+actions: [draft_reply, label, archive, snooze, remind, create_task]
+autonomy: ask
+notify: {urgent_ping: true, digest: true, min_urgency_for_ping: 2}
+few_shot: 8
+evals: evals/inbox.jsonl

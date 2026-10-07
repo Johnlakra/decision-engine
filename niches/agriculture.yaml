@@ -1,0 +1,48 @@
+# Phase 7 pilot. Decision support, not guarantees. Chemicals and doses always go to an expert.
+name: agriculture
+label: Farm advisor
+description: a farmer's question or report about crops, irrigation, weather, pests, fertiliser, mandi prices or selling produce
+enabled: false                    # turned on in phase 7
+version: 1
+languages: [pa, hi, en]
+sensitivity: private
+triage:
+  min_confidence: 0.7
+  questions:
+    farm_topic:
+      type: choice
+      instructions: What does the farmer need to decide?
+      criteria:
+        irrigation: "whether or when to irrigate"
+        selling: "whether to sell now, hold, or which mandi"
+        pest_disease: "a pest, disease or crop damage problem"
+        fertiliser: "fertiliser or nutrient timing"
+        sowing_harvest: "sowing or harvest timing, variety choice"
+        other: "anything else"
+extract:
+  type: object
+  properties:
+    crop: {type: string}
+    variety: {type: string}
+    stage: {type: string, description: "sowing, vegetative, flowering, grain filling, harvest…"}
+    sowing_date: {type: string}
+    village: {type: string}
+    district: {type: string}
+    quantity_quintal: {type: number}
+    symptom: {type: string}
+tools: [farmer.profile, open_meteo.forecast, agmarknet.prices, crop_calendar.lookup]
+prompt: |
+  You advise a farmer in Punjab. Use ONLY the tool results (weather forecast, mandi prices with dates,
+  crop calendar) and what the farmer said. Give 2 to 3 options with a clear recommendation and a reason in
+  simple words, in the farmer's language. Always state the date of the price/weather data you used.
+  For pest, disease or fertiliser questions: you may describe what to check and when, but never give a chemical
+  name or dose; recommend contacting the expert/KVK and set needs_expert true. Never promise yields or prices.
+options_hint: ["Do it today", "Wait N days", "Ask the expert"]
+actions: [notify, remind, create_task]
+autonomy: ask
+expert_review:
+  always: false
+  when_topics: [pest_disease, fertiliser]
+notify: {urgent_ping: true, digest: false, min_urgency_for_ping: 2}
+few_shot: 4
+evals: evals/agriculture.jsonl
