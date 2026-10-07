@@ -2,10 +2,18 @@
 
 import os
 import socket
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
+import pytest_asyncio
+from alembic.config import Config
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+from alembic import command
+from app.core.config import get_settings
+from app.models import Tenant
 
 DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://de:de@localhost:5432/de_test"
 
@@ -39,6 +47,50 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 @pytest.fixture
 def settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[pytest.MonkeyPatch]:
-    """Override environment variables for one test (Settings arrive in step 0.2)."""
+    """Override environment variables for one test; the settings cache is reset around it."""
     monkeypatch.setenv("APP_ENV", "test")
+    get_settings.cache_clear()
     yield monkeypatch
+    get_settings.cache_clear()
+
+
+API_ROOT = Path(__file__).resolve().parents[1]
+
+
+def alembic_config() -> Config:
+    config = Config(str(API_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(API_ROOT / "alembic"))
+    config.set_main_option("sqlalchemy.url", test_database_url())
+    return config
+
+
+@pytest.fixture(scope="session")
+def migrated_db() -> str:
+    """Bring the test database to head once per session."""
+    command.upgrade(alembic_config(), "head")
+    return test_database_url()
+
+
+@pytest_asyncio.fixture
+async def db_session(migrated_db: str) -> AsyncIterator[AsyncSession]:
+    """Real Postgres session inside an outer transaction that is rolled back per test."""
+    engine = create_async_engine(migrated_db)
+    async with engine.connect() as connection:
+        outer = await connection.begin()
+        session = AsyncSession(
+            bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
+        )
+        try:
+            yield session
+        finally:
+            await session.close()
+            await outer.rollback()
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def tenant(db_session: AsyncSession) -> Tenant:
+    row = Tenant(name="Test Tenant")
+    db_session.add(row)
+    await db_session.flush()
+    return row
