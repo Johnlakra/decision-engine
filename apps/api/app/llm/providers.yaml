@@ -1,0 +1,107 @@
+# LLM provider table (docs/LLM_GATEWAY.md). Free-tier numbers verified 2026-10-07 and they drift:
+# model names and daily budgets are overridable by env (GEMINI_MODEL, GEMINI_RPD, ...), see core/config.py.
+# `*_env` values are lower-case Settings field names. A provider is skipped when its key (or Ollama URL)
+# or model is empty. rpm/rpd/tpd here are informational except rpd, which is the daily request budget.
+usd_inr: 88.0   # rough rate for the cost estimate; prices below are INR per 1M tokens, 0 = free tier
+
+providers:
+  gemini:
+    # Verified 2026-10-07 (ai.google.dev/gemini-api/docs/models): stable flash-lite models are
+    # gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-2.5-flash-lite (limited access for new projects);
+    # the alias gemini-flash-lite-latest resolves to the newest. Google no longer publishes a free-tier
+    # table (docs/rate-limits: "view your active limits in AI Studio"); third parties report limits cut
+    # 50-80% in April 2026. rpd 500 is a conservative budget; check aistudio.google.com/rate-limit.
+    litellm_model: gemini/gemini-flash-lite-latest
+    model_env: gemini_model
+    key_env: gemini_api_key
+    rpd_env: gemini_rpd
+    rpm: 10
+    rpd: 500
+    private_ok: false
+    json: native
+    purposes: [normalise, classify, decide, summarise, draft]
+    prices_inr_per_1m: {input: 0, output: 0}
+  groq:
+    # Verified 2026-10-07 (console.groq.com/docs/rate-limits), free plan, openai/gpt-oss-120b:
+    # 30 RPM, 1K RPD, 8K TPM, 200K TPD (per organization). TPD binds long before RPD.
+    litellm_model: groq/openai/gpt-oss-120b
+    model_env: groq_model
+    key_env: groq_api_key
+    rpd_env: groq_rpd
+    rpm: 30
+    rpd: 1000
+    tpd: 200000
+    private_ok: false
+    json: native
+    purposes: [classify, decide, draft]
+    prices_inr_per_1m: {input: 0, output: 0}
+  cerebras:
+    # Verified 2026-10-07 (inference-docs.cerebras.ai/support/rate-limits), Free Trial: gpt-oss-120b and
+    # qwen-3.8-27b only; 5 RPM, 30K uncached TPM, 1M tokens/hour and 1M tokens/day. $5 credit expires
+    # 30 days after issue and needs a verified payment method. No request cap, so no rpd budget.
+    litellm_model: cerebras/gpt-oss-120b
+    model_env: cerebras_model
+    key_env: cerebras_api_key
+    rpm: 5
+    tpd: 1000000
+    private_ok: false
+    json: native
+    purposes: [normalise, classify, bulk]
+    prices_inr_per_1m: {input: 0, output: 0}
+  openrouter:
+    # Verified 2026-10-07 (openrouter.ai/docs/api-reference/limits): ids ending :free get 20 RPM and
+    # 50 RPD (1000 RPD once the account has bought 10+ credits; then raise OPENROUTER_RPD).
+    # The free catalogue rotates weekly: there is no default model, set OPENROUTER_MODEL
+    # (for example openrouter/<vendor>/<model>:free). Empty = provider skipped.
+    litellm_model: ""
+    model_env: openrouter_model
+    key_env: openrouter_api_key
+    rpd_env: openrouter_rpd
+    rpm: 20
+    rpd: 50
+    private_ok: false
+    json: prompt
+    purposes: [classify, summarise]
+    prices_inr_per_1m: {input: 0, output: 0}
+  sarvam:
+    # Custom adapter (Phase 7, not built): no litellm_model, so it is never selected yet.
+    key_env: sarvam_api_key
+    private_ok: false
+    json: prompt
+    purposes: [indic_text, translate, stt, tts]
+    prices_inr_per_1m: {input: 0, output: 0}
+  ollama:
+    # Local, the only default private provider. Model must be pulled (ollama pull qwen3:8b).
+    litellm_model: ollama_chat/qwen3:8b
+    model_env: ollama_model
+    api_base_env: ollama_url
+    private_ok: true
+    json: native
+    purposes: [normalise, classify, decide, draft]
+    prices_inr_per_1m: {input: 0, output: 0}
+  openai:
+    # Paid path, off until OPENAI_API_KEY and OPENAI_MODEL are set. Private only when the plan's terms
+    # allow it (OPENAI_PRIVATE_OK=true). Prices are an estimate for a mini-class model (about $0.25 /
+    # $2.00 per 1M at usd_inr 88): update when you pick the model.
+    litellm_model: ""
+    model_env: openai_model
+    key_env: openai_api_key
+    private_ok_env: openai_private_ok
+    json: native
+    purposes: [decide, draft]
+    prices_inr_per_1m: {input: 22, output: 176}
+
+chains:   # tried in order; unusable providers are skipped
+  normalise: [gemini, cerebras, groq, openrouter, ollama]
+  classify: [groq, gemini, cerebras, openrouter, ollama]
+  decide: [gemini, groq, openrouter, ollama]
+  summarise: [gemini, groq, openrouter]
+  draft: [ollama, gemini, groq]
+  bulk: [cerebras, gemini, groq]
+  private: [ollama, openai]   # the only chain used when sensitivity == private
+  indic: [sarvam, gemini]     # tried first for hi/pa text purposes
+
+indic_languages: [hi, pa, bn, ta, te, mr, gu, kn, ml, or, ur]
+indic_purposes: [summarise, draft]
+
+max_tokens: {normalise: 1500, classify: 400, decide: 2000, summarise: 800, draft: 1200, bulk: 1500, default: 1000}
