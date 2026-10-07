@@ -121,4 +121,6 @@ class Connector(Protocol):
 - **IDs**: UUIDv7 (`uuid6` package or Python 3.14 `uuid.uuid7` if available).
 - **Time**: all UTC; tenant timezone (default Asia/Kolkata) only for display, quiet hours, digests.
 - **Feature flags**: env + `tenant_settings` JSONB (laya_mode, autonomy overrides, digest hour).
+- **Rate limits** (FR-07): Redis fixed window when `REDIS_URL` is set, else an in-process window, so the limit
+  is per process; more than one API process requires Redis (ADR 0002).
 - **ADRs**: `docs/adr/NNNN-title.md` (context, decision, consequences) for any stack or contract change.
