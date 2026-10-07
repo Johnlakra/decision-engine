@@ -30,7 +30,7 @@ migrate:
 	$(API) alembic upgrade head
 
 api-key:
-	$(API) python -m app.security.api_keys create
+	$(API) python -m app.security.api_keys create --name $(or $(NAME),local-admin) --scopes $(or $(SCOPES),admin)
 
 demo-item:
 	$(API) python -m scripts.demo_item
