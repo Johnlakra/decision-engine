@@ -1,0 +1,28 @@
+{
+  "_note": "Derived from laya 0.3.27 serve.py + agent.py (answer dicts) + router.py (routing); not recorded from a live model.",
+  "results": [
+    {
+      "model": "laya-rl-agent",
+      "answers": {
+        "needs_decision": {
+          "type": "choice", "choice": "A",
+          "probabilities": {"A": 0.91, "B": 0.09},
+          "confidence": 0.84, "answer_confidence": 0.88, "action": {"act_probability": 0.5}
+        },
+        "urgency": {
+          "type": "score", "score": 1.6,
+          "probabilities": {"0": 0.05, "1": 0.3, "2": 0.65},
+          "legend": {"0": "can wait a week or more", "1": "this week", "2": "today or overdue"},
+          "confidence": 0.7, "answer_confidence": 0.72, "action": {"act_probability": 0.5}
+        },
+        "keep": {
+          "type": "noul", "noul": 0.73, "confidence": 0.73, "answer_confidence": 0.73,
+          "action": {"act_probability": 0.5}
+        }
+      },
+      "usage": {"input_tokens": 120, "output_tokens": 0},
+      "routing": {"model": "english", "reason": "latin script"}
+    }
+  ],
+  "total_usage": {"input_tokens": 120, "output_tokens": 0}
+}

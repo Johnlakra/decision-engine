@@ -1,0 +1,14 @@
+{
+  "_note": "LAYA_JEV_STRICT=1 projection (serve.py _project_jev_strict): no routing, no answer_confidence, noul has only 'noul'.",
+  "results": [
+    {
+      "model": "laya-rl-agent",
+      "answers": {
+        "needs_decision": {"type": "choice", "choice": "B",
+                           "confidence": 0.6, "probabilities": {"A": 0.3, "B": 0.7}},
+        "keep": {"type": "noul", "noul": 0.2}
+      },
+      "usage": {"input_tokens": 10, "output_tokens": 0}
+    }
+  ]
+}

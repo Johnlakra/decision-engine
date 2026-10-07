@@ -1,0 +1,2 @@
+{"_note": "GET /health with Bearer: full payload; without a valid token and with LAYA_API_KEY set: {\"status\": \"ok\"}",
+ "status": "ok", "loaded": ["english"], "device": "cpu", "device_is_preference": false}
