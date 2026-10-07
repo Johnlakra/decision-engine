@@ -1,0 +1,87 @@
+# Local / single-VM stack. Secrets come from .env (never committed); see .env.example.
+# Laya is opt-in:  make laya-up  (sets DE_LAYA_URL for api/worker and starts the laya profile).
+x-api-env: &api-env
+  DATABASE_URL: postgresql+asyncpg://de:de@db:5432/de
+  REDIS_URL: redis://redis:6379/0
+  # Empty unless `make laya-up` sets DE_LAYA_URL (health then reports "skipped").
+  # Deliberately not ${LAYA_URL}: compose would read it from .env and point at a stopped laya.
+  LAYA_URL: ${DE_LAYA_URL:-}
+
+x-api-base: &api-base
+  build:
+    context: .
+    dockerfile: apps/api/Dockerfile
+  image: decision-engine-api:dev
+  env_file:
+    - path: .env
+      required: false
+  environment: *api-env
+  restart: unless-stopped
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: de
+      POSTGRES_PASSWORD: de
+      POSTGRES_DB: de
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U de -d de"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    <<: *api-base
+    command: ["api"]
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    <<: *api-base
+    command: ["worker"]
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  laya:
+    profiles: ["laya"]
+    build:
+      context: services/laya
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8001:8000"
+    mem_limit: 4g
+    volumes:
+      - models:/models
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  models:

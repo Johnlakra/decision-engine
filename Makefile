@@ -6,7 +6,7 @@ dev:
 	docker compose up -d --build
 
 down:
-	docker compose down
+	docker compose --profile laya down
 
 test:
 	$(API) pytest -q
@@ -35,8 +35,9 @@ api-key:
 demo-item:
 	$(API) python -m scripts.demo_item
 
+# DE_LAYA_URL is set only here (compose maps it to LAYA_URL); plain `make dev` leaves it empty.
 laya-up:
-	docker compose --profile laya up -d laya
+	DE_LAYA_URL=http://laya:8000 docker compose --profile laya up -d --build laya api worker
 
 smoke-llm:
 	$(API) python -m app.llm.smoke
