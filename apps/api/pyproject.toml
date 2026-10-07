@@ -70,7 +70,8 @@ plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["app.core.*", "app.security.*", "app.llm.*", "app.triage.*"]
+module = ["app.core.*", "app.security.*", "app.llm.*", "app.triage.*",
+  "app.niches.*", "app.workers.*", "app.models.status", "app.api.*"]
 strict = true
 
 [tool.pytest.ini_options]
