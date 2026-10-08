@@ -1,6 +1,9 @@
 .PHONY: dev down test test-unit test-integration lint fmt migrate api-key demo-item laya-up smoke-llm smoke-laya seed eval
 
 API = cd apps/api && uv run
+# Commands that act on the running compose stack (its DB host `db` only resolves inside compose).
+# Without Docker, run them from apps/api with `uv run python -m ...` and DATABASE_URL set.
+STACK = docker compose exec -T api python -m
 
 dev:
 	docker compose up -d --build
@@ -30,10 +33,10 @@ migrate:
 	$(API) alembic upgrade head
 
 api-key:
-	$(API) python -m app.security.api_keys create --name $(or $(NAME),local-admin) --scopes $(or $(SCOPES),admin)
+	$(STACK) app.security.api_keys create --name $(or $(NAME),local-admin) --scopes $(or $(SCOPES),admin)
 
 demo-item:
-	$(API) python -m scripts.demo_item
+	$(STACK) scripts.demo_item
 
 # DE_LAYA_URL is set only here (compose maps it to LAYA_URL); plain `make dev` leaves it empty.
 laya-up:
