@@ -1,15 +1,18 @@
 """Application settings: every env var in /.env.example, with a default (NFR-05)."""
 
+import logging
 import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 
 from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 PLACEHOLDER_PREFIX = "change-me"
+logger = logging.getLogger(__name__)
 _HOURS = re.compile(r"^(\d{1,2})-(\d{1,2})$")
 
 
@@ -19,6 +22,7 @@ def _split_csv(value: object) -> object:
     return value
 
 
+_DIR_DEFAULTS = {"niches_dir": "niches", "schemas_dir": "schemas", "data_dir": "data"}
 CsvList = Annotated[list[str], NoDecode]
 
 
@@ -34,6 +38,9 @@ class Settings(BaseSettings):
     cors_allow_origins: CsvList = ["http://localhost:3000"]  # comma-separated origins
     niches_dir: Path = REPO_ROOT / "niches"  # niche YAML directory (empty = default)
     schemas_dir: Path = REPO_ROOT / "schemas"  # JSON schema directory (empty = default)
+
+    data_dir: Path = REPO_ROOT / "data"  # uploads, exports, eval sets (empty = default)
+    items_per_day: int = 5000  # per-tenant soft cap on new items per UTC day (ADR 0004)
 
     # Database / cache
     database_url: str = "postgresql+asyncpg://de:de@db:5432/de"  # async SQLAlchemy URL
@@ -51,6 +58,9 @@ class Settings(BaseSettings):
     auth_google_id: str = ""  # Google sign-in client id
     auth_google_secret: SecretStr = SecretStr("")  # Google sign-in client secret
     rate_limit_per_min: int = 120  # per-key requests per minute
+    webhook_allow_private_urls: bool = False  # dev only: allow http/private hosts
+    webhook_timeout_seconds: float = 10  # per-delivery HTTP timeout
+    decide_timeout_seconds: float = 30  # POST /v1/decide synchronous budget
     raw_retention_days: int = 180  # raw payload retention
     audio_retention_days: int = 7  # voice note retention
 
@@ -80,7 +90,6 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr = SecretStr("")
     openai_model: str = ""
     openai_private_ok: bool = False  # paid plan terms allow private items
-    langsmith_api_key: SecretStr = SecretStr("")  # optional tracing
 
     # Connectors
     telegram_bot_token: SecretStr = SecretStr("")
@@ -101,12 +110,12 @@ class Settings(BaseSettings):
     def _csv(cls, value: object) -> object:
         return _split_csv(value)
 
-    @field_validator("niches_dir", "schemas_dir", mode="before")
+    @field_validator("niches_dir", "schemas_dir", "data_dir", mode="before")
     @classmethod
     def _empty_dir_is_default(cls, value: object, info: object) -> object:
         if value in ("", None):
             name = getattr(info, "field_name", "")
-            return REPO_ROOT / ("niches" if name == "niches_dir" else "schemas")
+            return REPO_ROOT / _DIR_DEFAULTS[name]
         return value
 
     @field_validator("worker_active_hours", mode="before")
@@ -125,6 +134,27 @@ class Settings(BaseSettings):
         if not (0 <= start < end <= 24):
             raise ValueError("WORKER_ACTIVE_HOURS must satisfy 0 <= start < end <= 24")
         return self
+
+    @model_validator(mode="after")
+    def _pooler_warning(self) -> "Settings":
+        host = urlparse(self.database_url).hostname or ""
+        if "-pooler" in host:
+            logger.warning(
+                "DATABASE_URL points at a pooled endpoint (%s). The app needs LISTEN, session "
+                "advisory locks and CREATE INDEX CONCURRENTLY: use the direct host (ADR 0003).",
+                host,
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _prod_private_urls(self) -> "Settings":
+        if self.app_env == "prod" and self.webhook_allow_private_urls:
+            raise ValueError("WEBHOOK_ALLOW_PRIVATE_URLS must be false when APP_ENV=prod")
+        return self
+
+    @property
+    def db_pooler(self) -> bool:
+        return "-pooler" in (urlparse(self.database_url).hostname or "")
 
     @model_validator(mode="after")
     def _prod_secrets(self) -> "Settings":

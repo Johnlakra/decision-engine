@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import pytest
+
 from app.security.untrusted import MAX_DATA_CHARS, as_data
 
 INJECTION = (Path(__file__).parent / "fixtures" / "injection.txt").read_text()

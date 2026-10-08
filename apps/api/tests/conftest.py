@@ -14,6 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from alembic import command
 from app.core.config import get_settings
 from app.models import Tenant
+from tests.committed_fixtures import (  # noqa: F401  (fixtures re-exported for discovery)
+    admin_key,
+    api_client,
+    checkpoint_db,
+    committed_db,
+    tenant_committed,
+)
 
 DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://de:de@localhost:5432/de_test"
 

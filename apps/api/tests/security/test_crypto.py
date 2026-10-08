@@ -3,6 +3,8 @@
 from collections.abc import Iterator
 
 import pytest
+from cryptography.fernet import Fernet
+
 from app.core.config import get_settings
 from app.security.crypto import (
     CryptoNotConfigured,
@@ -10,7 +12,6 @@ from app.security.crypto import (
     decrypt,
     encrypt,
 )
-from cryptography.fernet import Fernet
 
 PLAINTEXT = "ya29.super-secret-oauth-refresh-token"
 

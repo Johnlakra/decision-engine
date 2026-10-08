@@ -20,6 +20,10 @@ dependencies = [
   "jsonschema",
   "referencing",
   "cryptography",
+  # ADR 0003: LangGraph runtime. The checkpointer is psycopg 3 only; asyncpg stays for SQLAlchemy.
+  "langgraph==1.2.14",
+  "langgraph-checkpoint-postgres==3.1.2",
+  "psycopg[binary,pool]==3.3.6",
 ]
 
 [dependency-groups]
@@ -59,6 +63,15 @@ select = ["E", "F", "I", "UP", "B", "TID", "S", "ASYNC"]
 "google.generativeai".msg = "Import LLM providers only under app/llm (use llm.gateway)."
 "groq".msg = "Import LLM providers only under app/llm (use llm.gateway)."
 "cerebras".msg = "Import LLM providers only under app/llm (use llm.gateway)."
+# ADR 0003: graph nodes never use LangChain chat models; only langchain_core internals via langgraph.
+"langchain_openai".msg = "Import LLM providers only under app/llm (use llm.gateway)."
+"langchain_anthropic".msg = "Import LLM providers only under app/llm (use llm.gateway)."
+"langchain_google_genai".msg = "Import LLM providers only under app/llm (use llm.gateway)."
+"langchain_groq".msg = "Import LLM providers only under app/llm (use llm.gateway)."
+"langchain_community".msg = "Import LLM providers only under app/llm (use llm.gateway)."
+"langchain_litellm".msg = "Import LLM providers only under app/llm (use llm.gateway)."
+"langchain_ollama".msg = "Import LLM providers only under app/llm (use llm.gateway)."
+"langchain.chat_models".msg = "Import LLM providers only under app/llm (use llm.gateway)."
 
 [tool.ruff.lint.per-file-ignores]
 "app/llm/**" = ["TID251"]
@@ -71,7 +84,9 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["app.core.*", "app.security.*", "app.llm.*", "app.triage.*",
-  "app.niches.*", "app.workers.*", "app.models.status", "app.api.*"]
+  "app.niches.*", "app.workers.*", "app.models.status", "app.api.*",
+  "app.graph.*", "app.actions.*", "app.integrations.*", "app.normalise.*", "app.tools.*",
+  "app.feedback.*", "app.ingest.*"]
 strict = true
 
 [tool.pytest.ini_options]

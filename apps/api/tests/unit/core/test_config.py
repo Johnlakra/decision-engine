@@ -86,3 +86,31 @@ def test_get_settings_is_cached() -> None:
     get_settings.cache_clear()
     assert get_settings() is get_settings()
     get_settings.cache_clear()
+
+
+def test_phase1_defaults() -> None:
+    """FR-07 (ADR 0004): per-tenant cap and webhook knobs have safe defaults."""
+    s = make()
+    assert s.items_per_day == 5000
+    assert s.webhook_allow_private_urls is False
+    assert s.webhook_timeout_seconds == 10
+    assert s.decide_timeout_seconds == 30
+    assert s.data_dir == REPO / "data"
+    assert make(DATA_DIR="").data_dir == REPO / "data"
+
+
+def test_prod_rejects_private_webhook_urls() -> None:
+    secrets = {"API_KEY_PEPPER": "real-pepper", "TOKEN_ENC_KEY": "k", "LAYA_API_KEY": "real"}
+    with pytest.raises(ValidationError, match="WEBHOOK_ALLOW_PRIVATE_URLS"):
+        make(APP_ENV="prod", WEBHOOK_ALLOW_PRIVATE_URLS="true", **secrets)
+    assert make(APP_ENV="prod", **secrets).webhook_allow_private_urls is False
+
+
+def test_pooler_url_warns(caplog: pytest.LogCaptureFixture) -> None:
+    """ADR 0003: pooled endpoints break LISTEN and advisory locks."""
+    url = "postgresql+asyncpg://u:p@ep-x-pooler.neon.tech/de"
+    with caplog.at_level("WARNING"):
+        s = make(DATABASE_URL=url)
+    assert s.db_pooler is True
+    assert "pooled endpoint" in caplog.text
+    assert make().db_pooler is False

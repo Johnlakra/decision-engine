@@ -6,6 +6,7 @@ import re
 import time
 
 import pytest
+
 from app.security.hmac import InvalidSignature, sign, verify
 
 SECRET = b"s3cret-key-for-tests"

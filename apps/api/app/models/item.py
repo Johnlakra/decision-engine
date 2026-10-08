@@ -40,6 +40,7 @@ class Item(IdMixin, TenantMixin, TimestampMixin, Base):
             text("urgency DESC"),
             "deadline_at",
         ),
+        Index("ix_items_tenant_created", "tenant_id", "created_at"),
         Index(
             "ix_items_embedding",
             "embedding",
@@ -68,6 +69,8 @@ class Item(IdMixin, TenantMixin, TimestampMixin, Base):
         ForeignKey("items.id", ondelete="SET NULL")
     )
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
+    hints: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # ADR 0004; never public
+    callback_url: Mapped[str | None] = mapped_column(Text)  # stored only in Phase 1; never public
     laya_mode: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
