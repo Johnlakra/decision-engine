@@ -1,4 +1,4 @@
-"""Worker lifecycle on real Postgres: SIGTERM, LISTEN wake and fallback, crash-resume (NFR-02/03)."""
+"""Worker lifecycle on real Postgres: SIGTERM, LISTEN wake, crash-resume (NFR-02, NFR-03)."""
 
 import asyncio
 import os
