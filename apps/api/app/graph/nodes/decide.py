@@ -27,7 +27,7 @@ DATA_RULE = (
 def registered_actions() -> frozenset[str] | None:
     """Action names the registry knows; ``None`` when the actions package is not available."""
     try:
-        module = importlib.import_module("app.actions.registry")
+        module = importlib.import_module("app.actions")
     except ImportError:
         log.warning("actions registry unavailable; only the niche allow-list is applied")
         return None

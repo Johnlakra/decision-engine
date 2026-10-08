@@ -31,6 +31,7 @@ class ItemView:
     risk: str | None
     triage: dict[str, Any] | None
     content: dict[str, Any] = field(default_factory=dict)
+    decision: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,7 @@ def _view(item: Item) -> ItemView:
         risk=item.risk,
         triage=dict(item.triage) if item.triage else None,
         content=dict(item.content) if item.content else {},
+        decision=dict(item.decision) if item.decision else None,
     )
 
 
