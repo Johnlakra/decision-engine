@@ -26,7 +26,9 @@
         "url": {"type": "string"},
         "attachments": {"type": "array", "items": {"type": "object",
           "properties": {"name": {"type": "string"}, "mime": {"type": "string"}, "text": {"type": "string"}, "ref": {"type": "string"}}}},
-        "entities": {"type": "object", "description": "Niche extract output: dates, amounts, deadlines, crop, location…"}
+        "entities": {"type": "object", "description": "Niche extract output: dates, amounts, deadlines, crop, location…"},
+        "language": {"type": ["string", "null"]},
+        "flags": {"type": "array", "items": {"type": "string"}, "description": "e.g. normalise_failed"}
       }
     },
     "niche": {"type": ["string", "null"]},
@@ -51,7 +53,10 @@
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "autonomy": {"enum": ["suggest", "ask", "auto"]},
         "needs_expert": {"type": "boolean"},
-        "model": {"type": "string"}
+        "model": {"type": ["string", "null"]},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+        "niche_version": {"type": "integer"},
+        "ready_at": {"type": ["string", "null"], "format": "date-time"}
       }
     },
     "last_decision": {"type": ["object", "null"], "properties": {

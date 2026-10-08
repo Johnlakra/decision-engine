@@ -11,7 +11,7 @@ JSON columns are `jsonb`. Enums are `text` + CHECK (easier migrations than PG en
 | `users` | email unique, name, role (`owner`/`member`/`expert`) | web login allow-list mirror |
 | `api_keys` | prefix unique, hash, scopes text[], name, last_used_at, revoked_at | secret shown once |
 | `sources` | type, name, slug unique per tenant, config jsonb, secret_enc, oauth_enc, niche_hint, sensitivity, enabled, cursor jsonb, last_polled_at, error_count | tokens Fernet-encrypted |
-| `items` | source, source_ref, received_at, status, raw jsonb, content jsonb, language, sensitivity, niche, triage jsonb, decision jsonb, risk, urgency smallint, deadline_at, related_to uuid, embedding vector(768) null, laya_mode, error text, attempts | UNIQUE(tenant_id, source, source_ref); idx (tenant_id, status, urgency desc, deadline_at); ivfflat/hnsw on embedding |
+| `items` | source, source_ref, received_at, status, raw jsonb, content jsonb, language, sensitivity, niche, triage jsonb, decision jsonb, risk, urgency smallint, deadline_at, related_to uuid, embedding vector(768) null, laya_mode, error text, attempts, hints jsonb null, callback_url text null | UNIQUE(tenant_id, source, source_ref); idx (tenant_id, status, urgency desc, deadline_at); idx `ix_items_tenant_created` (tenant_id, created_at) for the daily cap; hnsw on embedding. `hints`/`callback_url` (migration 0002, ADR 0004) are never exposed in API output |
 | `jobs` | kind (`process`,`action`,`webhook`,`poll`,`upload`,`digest`), item_id null, payload jsonb, status (`queued`,`running`,`done`,`failed`), run_at, attempts, max_attempts (5), locked_by, locked_at, last_error | partial idx on (run_at) where status='queued'; claim via `FOR UPDATE SKIP LOCKED` |
 | `niches` | name, config jsonb, version int, enabled, source (`yaml`/`db`) | DB rows override YAML of the same name |
 | `decisions` | item_id, verdict, option, edits jsonb, decided_by (`human`/`auto`/`llm`), user_id, latency_ms, undone_at | append-only |
@@ -19,12 +19,12 @@ JSON columns are `jsonb`. Enums are `text` + CHECK (easier migrations than PG en
 | `actions_log` | item_id, action, params jsonb, idem_key unique, status, result jsonb, reversible, undone_at | |
 | `llm_usage` | provider, model, purpose, item_id, prompt_tokens, completion_tokens, cost_inr numeric, latency_ms, ok, error_code | daily budgets fall back to counting here when Redis is absent |
 | `webhook_subscriptions` | url, events text[], secret_enc, enabled | |
-| `webhook_deliveries` | subscription_id, event, payload jsonb, status, attempts, next_attempt_at, last_status_code | |
+| `webhook_deliveries` | subscription_id, event, payload jsonb, status, attempts, next_attempt_at, last_status_code | status `pending`/`delivered`/`failed`; `payload` = the exact envelope bytes that are signed; retry after attempt n at +60/300/1800/7200 s, `failed` after 5 attempts (API.md) |
 | `uploads` | filename, mapping jsonb, status, total, done, failed, errors jsonb | |
 | `tool_cache` | tool, args_hash, result jsonb, expires_at | Agmarknet/weather caching |
 | `farmers` (phase 7) | phone_hash, language, village, district, crops jsonb, land_acres, consent_at | minimal PII, consent required |
 | `advisories` (phase 7) | farmer_id, item_id, inputs jsonb, output jsonb, needs_expert, reviewed_by, reviewed_at | |
-| LangGraph tables | created by `AsyncPostgresSaver.setup()` | do not edit by hand |
+| LangGraph tables | `checkpoint_migrations`, `checkpoints`, `checkpoint_blobs`, `checkpoint_writes` | created by `python -m app.graph.setup` (`AsyncPostgresSaver.setup()`), **not Alembic**; excluded from autogenerate; hold ids and derived data only, never item bodies; a thread is deleted when its graph reaches END (ADR 0003). Do not edit by hand |
 
 ## `items.triage` jsonb
 ```json
@@ -41,6 +41,17 @@ JSON columns are `jsonb`. Enums are `text` + CHECK (easier migrations than PG en
   "latency_ms": 41
 }
 ```
+Additive fields (Phase 1, `app/schemas/triage.py` `TriageRecord`):
+- each answer also carries `type` (`choice`/`score`/`noul`), `level`, `noul` when relevant, and
+  `source`: `laya` | `llm_fallback` | `hint` | `human`;
+- `questions`: the exact Laya questions asked (copied into `feedback.questions`);
+- `shadow`: `{answers | null, model, latency_ms, error}`, Laya's answers when `mode = "shadow"` (not acted on);
+  `error: "laya_unavailable"` when Laya gave no opinion;
+- `error`: e.g. `"fallback_unavailable"` when the item went to `needs_human_triage`.
+
+## `items.content` jsonb (= NormalisedContent)
+`{title ≤ 500, body, summary?, sender?, url?, language?, entities {}, attachments [], flags []}`.
+`flags` may contain `normalise_failed` (LLM normaliser unavailable; title fell back to the start of the payload).
 
 ## `items.decision` jsonb (= DecisionOut)
 ```json
@@ -53,10 +64,18 @@ JSON columns are `jsonb`. Enums are `text` + CHECK (easier migrations than PG en
   "deadline": "2026-10-08T04:30:00Z",
   "confidence": 0.74,
   "autonomy": "ask",
-  "model": "gemini-flash-lite-latest"
+  "model": "gemini-flash-lite-latest",
+  "needs_expert": false,
+  "warnings": ["possible scam: forced suggest"],
+  "niche_version": 3,
+  "ready_at": "2026-10-07T08:31:12Z"
 }
 ```
+Option ids match `^[A-E]$`; `recommended` is one of them. Additive fields (Phase 1, `StoredDecision`): `warnings`
+(policy notes, e.g. FR-25 scam override), `niche_version` (config version used), `ready_at` (when it entered
+`awaiting_approval`, used for `decisions.latency_ms`). Actions not allowed by the niche are dropped before storing.
 
 ## Retention
-`raw` and `content.body` of `private` items purged after `RAW_RETENTION_DAYS` (default 180); decisions and
+`raw`, `hints` and `content.body` of `private` items purged after `RAW_RETENTION_DAYS` (default 180); LangGraph
+checkpoints never hold them (ADR 0003); decisions and
 feedback keep `state_text` truncated to 700 chars for training unless the tenant opts out.

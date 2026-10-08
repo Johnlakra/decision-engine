@@ -40,18 +40,29 @@ new ─► normalised ─► triaged ─┬─► informational ─► done     
 
 ## 3. Graph (LangGraph)
 ```python
-State = TypedDict(item_id, tenant_id, content, triage, niche, tool_results, decision, approval, actions_done)
+# ADR 0003: ids and derived data only. Item raw/content/hints/bodies are NEVER in state; nodes read them from the DB.
+GraphState = TypedDict(item_id: str, tenant_id: str, niche: str, niche_version: int, sensitivity: str,
+                       language: str, route: "decide"|"informational"|"discarded", extracted: dict,
+                       tool_results: dict[str, dict], decision: dict | None, verdict: dict | None,
+                       actions_done: list[dict])       # JSON-native values only (ISO strings, no datetime/Pydantic)
 
-START → load_item → route ──┬─ niche == X & conf ≥ niche.min_confidence ─► X subgraph
-                            └─ else ─────────────────────────────────────► generic subgraph
-niche subgraph:  extract (LLM, niche.extract schema) → tools (parallel, niche.tools) → decide (LLM,
+START → load → route ──┬─ needs_decision = no ─────────────────────────────► informational → END
+                       ├─ niche == X & enabled & conf ≥ X.min_confidence ──► template(X)
+                       └─ else ────────────────────────────────────────────► template(generic)
+template(niche): extract (LLM, niche.extract schema) → tools (parallel, niche.tools) → decide (LLM,
                  niche.prompt + few-shot corrections → DecisionOut) → policy (autonomy, risk) →
-                 approval (interrupt() unless auto-allowed) → act (actions registry) → END
+                 approval (interrupt() unless auto-allowed; snooze loops back) → act (actions registry) → finish → END
 ```
-- Subgraphs are built **from YAML** by `graph/builder.py`: one generic subgraph template, parameterised.
-  A niche needing custom steps declares `steps:` referencing registered step functions.
-- Checkpointer: `langgraph-checkpoint-postgres` (`AsyncPostgresSaver`), thread id = item id.
-- `DecisionOut` (Pydantic): `options[2..5]`, `recommended`, `rationale`, `deadline`, `actions[]`, `confidence`.
+- One parameterised template, compiled once by `graph/builder.py` and driven by the niche YAML. Niche `steps:`
+  (custom step functions) are **rejected** until a later ADR (ADR 0003 §8).
+- Checkpointer: `langgraph-checkpoint-postgres` `AsyncPostgresSaver` over a psycopg 3 pool (max 2 per process), next to
+  asyncpg for SQLAlchemy. Its tables are created by `python -m app.graph.setup`, outside Alembic (ADR 0003).
+  Thread id = `str(item_id)`. Every run uses `durability="sync"`. A thread is deleted when the graph reaches END.
+- Code before `interrupt()` re-runs on resume, so pre-interrupt writes are guarded by `items.status`. The worker and
+  the resume API both take `graph/locks.item_lock(item_id)` (session advisory lock, direct DB connection).
+- `DecisionOut` (Pydantic, `app/schemas/decision.py`): `options[2..5]` each `{id A–E, label, actions[]}`,
+  `recommended` (an option id), `rationale ≤ 600`, `evidence[]`, `deadline`, `confidence`. Stored as
+  `items.decision` with `autonomy`, `needs_expert`, `warnings`, `model`, `niche_version`, `ready_at` added.
 
 ## 4. Folder layout (target)
 ```
@@ -69,9 +80,11 @@ apps/api/
     normalise/{mappers/,llm_normaliser.py,language.py,dedupe.py}
     triage/{laya_client.py,questions.py,fallback.py,service.py,calibration.py}
     niches/{loader.py,registry.py,wizard.py}
-    graph/{state.py,builder.py,nodes.py,policy.py,run.py}
+    graph/{state.py,checkpointer.py,setup.py,builder.py,run.py,locks.py,oneshot.py}
+    graph/nodes/{load,route,extract,tools,decide,policy,approval,act,finish}.py
     tools/{registry.py,agmarknet.py,open_meteo.py,crop_calendar.py,web_search.py,stack_catalog.py,…}
-    actions/{registry.py,archive.py,notify.py,webhook.py,gmail.py,telegram.py,…}
+    actions/{registry.py,generic.py,jobs.py,notify.py,gmail.py,telegram.py,…}
+    integrations/{events.py,webhooks_out.py,ssrf.py}   # outbound events + signed webhook delivery (FR-42)
     connectors/{base.py,rss.py,gmail.py,instagram.py,telegram.py,webhook.py,csv.py,voice.py}
     llm/{gateway.py,providers.yaml,budgets.py,structured.py,privacy.py}
     feedback/{service.py,export.py,shadow_report.py}
@@ -80,7 +93,8 @@ apps/api/
   tests/{unit,integration,fakes}/
 apps/web/      app/(queue|history|niches|sources|insights|settings)  components/  lib/api.ts  messages/{en,hi,pa}.json
 apps/mobile/   app/(tabs)/{queue,history,settings}.tsx  components/SwipeCard.tsx  lib/api.ts
-packages/client-ts/  packages/client-py/        # thin SDKs generated from OpenAPI
+packages/openapi.json                           # exported spec (make sdk)
+packages/client-ts/  packages/client-py/        # thin SDKs generated from OpenAPI (ADR 0006: npm + Node 24)
 services/laya/Dockerfile
 niches/*.yaml  schemas/*.json  evals/*.jsonl  docs/  docs/adr/
 docker-compose.yml  Makefile  .env.example  .github/workflows/ci.yml  render.yaml
@@ -122,5 +136,13 @@ class Connector(Protocol):
 - **Time**: all UTC; tenant timezone (default Asia/Kolkata) only for display, quiet hours, digests.
 - **Feature flags**: env + `tenant_settings` JSONB (laya_mode, autonomy overrides, digest hour).
 - **Rate limits** (FR-07): Redis fixed window when `REDIS_URL` is set, else an in-process window, so the limit
-  is per process; more than one API process requires Redis (ADR 0002).
+  is per process; more than one API process requires Redis (ADR 0002). The 5,000 items/day cap is **per tenant**,
+  a count of today's (UTC) `items` rows, soft (ADR 0004).
+- **Database URL**: `DATABASE_URL` must be a **direct** endpoint (on Neon: not the `-pooler` host). The worker's
+  `LISTEN`, the per-item session advisory lock and the checkpointer's `CREATE INDEX CONCURRENTLY` do not work through
+  a transaction pooler (ADR 0003).
+- **Outbound webhooks** (FR-42): emitters call `integrations.events.emit()` inside their own transaction. It enqueues
+  `jobs(kind=webhook, payload.op=fanout)`. The fan-out job writes one `webhook_deliveries` row and one `deliver`
+  job per subscription. Delivery retries on its own schedule (1 m, 5 m, 30 m, 2 h after attempts 1–4, then `failed`
+  as dead-letter), not the queue's generic backoff. See API.md "Outbound webhooks".
 - **ADRs**: `docs/adr/NNNN-title.md` (context, decision, consequences) for any stack or contract change.

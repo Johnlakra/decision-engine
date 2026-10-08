@@ -21,7 +21,7 @@ Numbered so code, tests and commits can cite them. **MUST** = MVP, **SHOULD** = 
 - **FR-04 MUST** `POST /v1/uploads` accepts CSV, JSONL or JSON (≤ 20 MB) plus a column mapping; rows become items through a job, with progress at `GET /v1/uploads/{id}`.
 - **FR-05 SHOULD** Attachments (PDF, DOCX, images) are converted to text/markdown (Docling) and attached to the item.
 - **FR-06 MUST** Every item stores the untouched raw payload (JSONB) so normalisation can be re-run.
-- **FR-07 MUST** Rate limit per API key (default 120 req/min, 5,000 items/day) with `429` + `Retry-After`.
+- **FR-07 MUST** Rate limits with `429` + `Retry-After`: per API key 120 req/min (ADR 0002), and per tenant 5,000 new items per UTC day, a soft cap counted from persisted rows (ADR 0004).
 
 ### Normalisation ("anything to JSON")
 - **FR-10 MUST** Every item is normalised to `schemas/decision_item.schema.json` (`content.title/body/sender/url/language/entities`).
@@ -52,7 +52,7 @@ Numbered so code, tests and commits can cite them. **MUST** = MVP, **SHOULD** = 
 ### Actions & outputs
 - **FR-40 MUST** Action registry: `archive`, `label`, `snooze`, `remind`, `notify` (Telegram/push/email digest), `webhook` (call subscriber), `create_task`, `draft_reply` (never sends by itself), `send_reply` (approval only).
 - **FR-41 MUST** Actions are idempotent (action key = item id + action + params hash) and logged with result.
-- **FR-42 MUST** Outbound webhooks: tenants subscribe to events (`item.triaged`, `decision.ready`, `decision.made`, `action.done`); payload signed `X-DE-Signature: sha256=<hmac>`; retries 1 m/5 m/30 m/2 h then dead-letter.
+- **FR-42 MUST** Outbound webhooks: tenants subscribe to events (`item.triaged`, `decision.ready`, `decision.made`, `action.done`); payload signed `X-DE-Signature: t=<unix>,v1=<hex hmac_sha256(secret, t + "." + body)>` (same scheme as FR-91, 5-min skew); retries 1 m/5 m/30 m/2 h then dead-letter.
 - **FR-43 MUST** Telegram notifier: instant ping for urgency 2 within quiet-hours rules; daily digest at a set hour.
 - **FR-44 SHOULD** Expo push notifications with action buttons (approve / reject).
 

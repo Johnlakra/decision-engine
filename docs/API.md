@@ -16,13 +16,20 @@ Pagination: cursor (`?cursor=<opaque>&limit=50`, max 200) → `{data: [...], nex
   "hints": {                               // optional; skip work when you already know
     "niche": "news_radar",
     "language": "en",
-    "sensitivity": "public",               // public | private (default: private for gmail/instagram/telegram)
-    "title": "…", "body": "…", "url": "…"
+    "sensitivity": "public",               // public | private. Default by source (ADR 0005): public for manual/webhook/
+                                           // radar/seed (and rss); private for gmail/instagram/telegram/voice and any other source
+    "title": "…", "body": "…", "url": "…", "sender": "…"
   },
-  "callback_url": "https://my-app/decision-hook"   // optional one-off webhook for this item
+  "callback_url": "https://my-app/decision-hook"   // optional; https only. STORED, NOT YET DELIVERED (Phase 2, ADR 0004)
 }
 ```
 `202 {"id": "0192…", "status": "new"}` · repeat → `200` same body · `422` validation · `429` rate limit.
+`hints` and `callback_url` are stored in their own columns and never returned by any GET or webhook (ADR 0004).
+
+**Rate limits (FR-07).** Per API key: 120 req/min → `429` + `Retry-After` (ADR 0002). Per tenant: 5,000 new items per
+UTC day, checked once per request before inserting. When today's count is already at the cap → `429`
+problem+json `{"type": "https://decision-engine/problems/daily-item-cap", "title": "Daily item cap reached", "status": 429}`
+with `Retry-After` = seconds until 00:00 UTC. It is a soft cap: an accepted bulk call may overshoot (ADR 0004).
 
 ### `POST /v1/items/bulk` (FR-03)
 `{"items": [ <item>, … ≤500 ]}` → `207 {"results": [{"index":0,"id":"…","status":"new"}, {"index":1,"error":{…}}]}`
@@ -37,7 +44,12 @@ Pagination: cursor (`?cursor=<opaque>&limit=50`, max 200) → `{data: [...], nex
   "snooze_until": "2026-10-08T03:30:00Z",
   "note": "too expensive" }             // free text, stored in feedback
 ```
-→ `200 {"status":"acting"|"done"|"snoozed"|"rejected"}` · `409` if the item is not awaiting approval.
+→ `200 {"status":"done"|"snoozed"|"rejected"}` (`approve`/`edit` run the allowed actions inline and return `done`;
+under `suggest` autonomy no action runs; `rejected` reports the verdict, the item itself ends `done`). Clients must
+also accept `"acting"`, reserved for long-running actions in later phases.
+`422` when `option` is not an option id, or `snooze` lacks a future `snooze_until`. `404` for another tenant's item.
+`409` problem+json when the item is not `awaiting_approval` **or** another request/worker holds the item
+(`type: .../not-awaiting-approval` or `.../item-busy`). A double submit gives one `200` and one `409`.
 ### `POST /v1/items/{id}/undo` — within 10 s of a decision (FR-53)
 ### `POST /v1/items/{id}/retry` — failed items
 ### `POST /v1/items/{id}/retriage` — rerun normalise+triage (after a niche change)
@@ -53,10 +65,16 @@ Pagination: cursor (`?cursor=<opaque>&limit=50`, max 200) → `{data: [...], nex
   },
   "niche": "agriculture",          // optional: also run that niche's tools + LLM decision
   "explain": true,                 // optional: LLM rationale
-  "language": "pa"                 // optional: answer language for rationale
+  "language": "pa",                // optional: answer language for rationale
+  "sensitivity": "public"          // optional, default public (ADR 0005); private → only private_ok providers
 }
 ```
-→ `200 {"answers": {"sell": {"choice":"B","probabilities":{…},"confidence":0.71}}, "decision": {…}?, "model": "laya-english", "fallback": false}`
+→ `200 {"answers": {"sell": {"choice":"B","probabilities":{…},"confidence":0.71}}, "decision": {…}?, "explanation": "…"?, "model": "laya-english", "fallback": false}`
+- `fallback: true` when Laya gave no opinion and the LLM fallback classifier answered. Laya mode does not gate this endpoint.
+- `decision` only with `niche` (runs extract/tools/decide/policy; writes nothing). `explanation` (additive) only with
+  `explain` and no `niche`.
+- Errors: `422` invalid questions (schema, ≤ 16 questions) · `503` fallback needed but unavailable, or private with no
+  `private_ok` provider (`type: .../no-private-provider`) · `504` after `DECIDE_TIMEOUT_SECONDS` (default 30).
 
 ## Uploads (FR-04)
 `POST /v1/uploads` multipart `file` + `mapping` JSON:
@@ -79,8 +97,21 @@ Pagination: cursor (`?cursor=<opaque>&limit=50`, max 200) → `{data: [...], nex
 
 ## Outbound webhooks (FR-42)
 - `GET/POST/DELETE /v1/subscriptions` `{url, events: ["decision.ready","decision.made","action.done","item.triaged"], secret}`
-- Delivery: `POST url` body `{"event":"decision.made","id":"evt_…","created_at":"…","data":{<DecisionItem>}}`,
-  header `X-DE-Signature: t=…,v1=…` (same scheme). Retries 1 m, 5 m, 30 m, 2 h; then dead-letter, visible in UI.
+- Scope `admin`. `url` must be `https` and resolve to a public address (loopback, RFC 1918, link-local, metadata,
+  ULA and multicast are refused with `422`; dev-only `WEBHOOK_ALLOW_PRIVATE_URLS=true` relaxes this). `secret` is
+  stored Fernet-encrypted and never returned.
+- Delivery: `POST url` body `{"event":"decision.made","id":"evt_<uuid7>","created_at":"…","data":{<DecisionItem>}}`
+  (`data` never contains `raw`, `hints` or `callback_url`). Headers: `X-DE-Signature: t=<unix>,v1=<hex
+  hmac_sha256(secret, t + "." + body)>` (same scheme as inbound, 5-min tolerance), `X-DE-Event: <event>`,
+  `X-DE-Delivery: <delivery id>`. Timeout `WEBHOOK_TIMEOUT_SECONDS` (10); redirects are not followed; only `2xx` counts.
+- Retries: attempt 1 at once, then 1 m, 5 m, 30 m, 2 h after each failure (5 attempts in total), then `failed`
+  (dead-letter, visible in UI). A retry re-signs the same stored body with a fresh `t`. Receivers dedupe on the
+  envelope `id`.
+- Mechanics: emitters enqueue `jobs(kind=webhook, payload {"op":"fanout","event","event_id","extra"})` in their own
+  transaction. The fan-out job writes one `webhook_deliveries` row per matching subscription and enqueues a
+  `deliver` job for each. Delivery failures are recorded on the row and rescheduled by the handler, not by the queue's
+  generic backoff. `data` is the item as of fan-out time.
+- Per-item `callback_url`: stored only, not delivered in Phase 1 (ADR 0004).
 
 ## Feedback & learning
 - `GET /v1/feedback/export?niche=news_radar&format=laya_train|laya_eval&since=…` → JSONL stream (FR-80)
