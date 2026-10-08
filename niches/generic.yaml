@@ -1,11 +1,11 @@
 # Fallback niche: anything that needs a decision but fits no other niche, or low-confidence routing.
 name: generic
 label: General
-description: anything else that needs the owner to decide or act and does not clearly belong to another niche
+description: anything else that needs the owner to decide or act, such as a bill, invitation, request, approval, offer or appointment, that is not about choosing software technologies
 enabled: true
 version: 1
 languages: [en, hi, pa]
-sensitivity: private
+sensitivity: public
 triage:
   min_confidence: 0.0          # the fallback always accepts
 extract:
@@ -20,7 +20,7 @@ prompt: |
   or tool results. If information is missing, one option must be "ask for the missing detail".
   Never invent names, dates, prices or links. If it looks like a scam, recommend ignoring it.
 options_hint: ["Do it now", "Schedule it", "Ask for more details", "Ignore"]
-actions: [archive, snooze, remind, create_task, notify]
+actions: [archive, snooze, remind, create_task]
 autonomy: ask
 notify: {urgent_ping: true, digest: true, min_urgency_for_ping: 2}
 few_shot: 6

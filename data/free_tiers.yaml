@@ -1,0 +1,152 @@
+# Free-tier summaries for stack_catalog.free_tiers (FR-32, FR-71). Never present as current without as_of.
+free_tiers:
+- id: supabase
+  service: Supabase
+  category: database
+  free_summary: Free Postgres, auth and storage project; inactive projects may pause
+  source_url: https://supabase.com/pricing
+  project_types:
+  - web_app
+  - mobile_app
+  - api
+  - ai_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: neon
+  service: Neon
+  category: database
+  free_summary: Free serverless Postgres with scale-to-zero
+  source_url: https://neon.com/pricing
+  project_types:
+  - web_app
+  - api
+  - ai_app
+  - data_pipeline
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: firebase
+  service: Firebase (Spark plan)
+  category: mobile_backend
+  free_summary: Auth, Firestore and hosting with daily quotas; some features need the paid plan
+  source_url: https://firebase.google.com/pricing
+  project_types:
+  - mobile_app
+  - web_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: powersync
+  service: PowerSync
+  category: mobile_backend
+  free_summary: Free tier for offline sync between SQLite and Postgres, with usage limits
+  source_url: https://www.powersync.com/pricing
+  project_types:
+  - mobile_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: mongodb_atlas
+  service: MongoDB Atlas (M0)
+  category: database
+  free_summary: Free shared cluster with small storage
+  source_url: https://www.mongodb.com/pricing
+  project_types:
+  - web_app
+  - api
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: cloudflare_pages
+  service: Cloudflare Pages and Workers
+  category: hosting
+  free_summary: Free static hosting and a daily quota of edge function requests
+  source_url: https://www.cloudflare.com/plans/developer-platform/
+  project_types:
+  - web_app
+  - api
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: vercel
+  service: Vercel (Hobby)
+  category: hosting
+  free_summary: Free hosting for personal, non-commercial projects
+  source_url: https://vercel.com/pricing
+  project_types:
+  - web_app
+  - ai_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: render
+  service: Render
+  category: hosting
+  free_summary: Free web services that sleep when idle; free Postgres is time-limited
+  source_url: https://render.com/pricing
+  project_types:
+  - web_app
+  - api
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: github_pages
+  service: GitHub Pages
+  category: hosting
+  free_summary: Free static hosting for public repositories
+  source_url: https://pages.github.com/
+  project_types:
+  - web_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: expo_eas
+  service: Expo EAS
+  category: mobile_backend
+  free_summary: Free monthly build quota for app builds
+  source_url: https://expo.dev/pricing
+  project_types:
+  - mobile_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: google_bigquery
+  service: Google BigQuery
+  category: data
+  free_summary: Monthly free query and storage quota
+  source_url: https://cloud.google.com/bigquery/pricing
+  project_types:
+  - data_pipeline
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: gemini_api
+  service: Google Gemini API
+  category: ai
+  free_summary: Free tier with rate limits; free-tier data may be used to improve products
+  source_url: https://ai.google.dev/pricing
+  project_types:
+  - ai_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: groq
+  service: Groq
+  category: ai
+  free_summary: Free tier for open models with rate limits
+  source_url: https://groq.com/pricing
+  project_types:
+  - ai_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: sentry
+  service: Sentry
+  category: monitoring
+  free_summary: Free developer plan with a small monthly event quota
+  source_url: https://sentry.io/pricing/
+  project_types:
+  - web_app
+  - mobile_app
+  - api
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.
+- id: upstash
+  service: Upstash Redis
+  category: cache
+  free_summary: Free Redis with a daily command limit
+  source_url: https://upstash.com/pricing
+  project_types:
+  - web_app
+  - api
+  - ai_app
+  as_of: '2026-10-08'
+  verify_note: Curated summary; check the source page for current limits and terms.

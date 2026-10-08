@@ -3,7 +3,7 @@
 name: news_radar
 label: News radar
 description: a news article, blog post, newsletter, release note or announcement from a feed or website
-enabled: true
+enabled: false
 version: 1
 languages: [en, hi]
 sensitivity: public

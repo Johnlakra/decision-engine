@@ -1,0 +1,533 @@
+# Curated stack catalog for stack_catalog.shortlist (FR-32, FR-71).
+# cost_inr_month: rough hosting cost in rupees at small scale (<= max_users). max_users 0 = not user-facing.
+# Hand-curated estimates, not live quotes: always show as_of and tell the owner to check current pricing.
+stacks:
+- id: expo_powersync_supabase
+  name: Expo + SQLite/PowerSync + free Postgres (Supabase)
+  summary: React Native app with a local SQLite database synced to a hosted Postgres
+  project_types:
+  - mobile_app
+  skills:
+  - react
+  - typescript
+  - javascript
+  offline: full
+  mobile: true
+  indic_ok: true
+  max_users: 20000
+  cost_inr_month: 0
+  risk: Sync service free tier limits; sync rules take time to learn
+  as_of: '2026-10-08'
+- id: expo_sqlite_supabase
+  name: Expo + SQLite with hand-rolled sync + Supabase
+  summary: React Native app, local SQLite, simple push/pull sync to Supabase
+  project_types:
+  - mobile_app
+  skills:
+  - react
+  - typescript
+  - javascript
+  offline: full
+  mobile: true
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 0
+  risk: Conflict handling is your own code
+  as_of: '2026-10-08'
+- id: react_native_watermelondb
+  name: React Native + WatermelonDB + own API
+  summary: Offline-first React Native with a reactive local database
+  project_types:
+  - mobile_app
+  skills:
+  - react
+  - javascript
+  - node
+  offline: full
+  mobile: true
+  indic_ok: true
+  max_users: 20000
+  cost_inr_month: 0
+  risk: Needs your own sync endpoint; smaller community
+  as_of: '2026-10-08'
+- id: flutter_drift_supabase
+  name: Flutter + Drift (SQLite) + Supabase
+  summary: Flutter app with a typed local database and Supabase backend
+  project_types:
+  - mobile_app
+  skills:
+  - dart
+  - flutter
+  offline: full
+  mobile: true
+  indic_ok: true
+  max_users: 20000
+  cost_inr_month: 0
+  risk: Team must know Dart; sync is your own code
+  as_of: '2026-10-08'
+- id: flutter_firebase
+  name: Flutter + Firebase (Firestore, Auth, FCM)
+  summary: Flutter app on Firebase with built-in offline cache
+  project_types:
+  - mobile_app
+  skills:
+  - dart
+  - flutter
+  offline: partial
+  mobile: true
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 0
+  risk: Vendor lock-in; read/write quotas on the free plan
+  as_of: '2026-10-08'
+- id: kotlin_room_android
+  name: Native Android (Kotlin) + Room + own API
+  summary: Native Android app with Room for local storage
+  project_types:
+  - mobile_app
+  skills:
+  - kotlin
+  - android
+  - java
+  offline: full
+  mobile: true
+  indic_ok: true
+  max_users: 50000
+  cost_inr_month: 0
+  risk: Android only; separate iOS effort
+  as_of: '2026-10-08'
+- id: expo_firebase
+  name: Expo + Firebase
+  summary: React Native app using Firebase Auth, Firestore and push
+  project_types:
+  - mobile_app
+  skills:
+  - react
+  - typescript
+  - javascript
+  offline: partial
+  mobile: true
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 0
+  risk: Offline cache limited; lock-in
+  as_of: '2026-10-08'
+- id: pwa_react_indexeddb
+  name: React PWA + IndexedDB + own API
+  summary: Installable web app that works offline via service worker
+  project_types:
+  - web_app
+  - mobile_app
+  skills:
+  - react
+  - javascript
+  - typescript
+  offline: partial
+  mobile: true
+  indic_ok: true
+  max_users: 20000
+  cost_inr_month: 0
+  risk: iOS PWA limits on push and storage
+  as_of: '2026-10-08'
+- id: dotnet_maui_sqlite
+  name: MAUI (.NET) + SQLite
+  summary: Cross-platform C# app with local SQLite
+  project_types:
+  - mobile_app
+  - desktop
+  skills:
+  - c#
+  - .net
+  offline: full
+  mobile: true
+  indic_ok: false
+  max_users: 10000
+  cost_inr_month: 0
+  risk: Smaller Indian talent pool; heavier tooling
+  as_of: '2026-10-08'
+- id: nextjs_vercel_neon
+  name: Next.js on Vercel + Neon Postgres
+  summary: Full-stack React web app on serverless hosting
+  project_types:
+  - web_app
+  - api
+  skills:
+  - react
+  - typescript
+  - javascript
+  - next.js
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 20000
+  cost_inr_month: 0
+  risk: Free tier is for non-commercial use on some hosts; cold starts
+  as_of: '2026-10-08'
+- id: nextjs_supabase
+  name: Next.js + Supabase
+  summary: React web app with managed auth, Postgres and storage
+  project_types:
+  - web_app
+  skills:
+  - react
+  - typescript
+  - javascript
+  - next.js
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 20000
+  cost_inr_month: 0
+  risk: Free projects pause when idle; lock-in on auth
+  as_of: '2026-10-08'
+- id: sveltekit_cloudflare
+  name: SvelteKit on Cloudflare Pages + D1
+  summary: Lightweight web app on edge hosting
+  project_types:
+  - web_app
+  skills:
+  - svelte
+  - javascript
+  - typescript
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 50000
+  cost_inr_month: 0
+  risk: Smaller ecosystem; D1 is SQLite-class scale
+  as_of: '2026-10-08'
+- id: astro_cloudflare_static
+  name: Astro static site on Cloudflare Pages
+  summary: Static content site with no server
+  project_types:
+  - web_app
+  skills:
+  - javascript
+  - html
+  - typescript
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 500000
+  cost_inr_month: 0
+  risk: Not for logged-in apps
+  as_of: '2026-10-08'
+- id: wordpress_shared_hosting
+  name: WordPress on shared hosting
+  summary: CMS site with plugins on cheap Indian shared hosting
+  project_types:
+  - web_app
+  skills:
+  - php
+  - wordpress
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 5000
+  cost_inr_month: 300
+  risk: Plugin security upkeep; limited custom logic
+  as_of: '2026-10-08'
+- id: django_postgres_render
+  name: Django + Postgres on Render
+  summary: Batteries-included Python web app with admin
+  project_types:
+  - web_app
+  - api
+  skills:
+  - python
+  - django
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 600
+  risk: Free web tier sleeps; free Postgres expires so budget for paid
+  as_of: '2026-10-08'
+- id: django_drf_react
+  name: Django REST + React
+  summary: Python API with a React front end
+  project_types:
+  - web_app
+  - api
+  skills:
+  - python
+  - django
+  - react
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 600
+  risk: Two codebases to deploy
+  as_of: '2026-10-08'
+- id: fastapi_postgres_react
+  name: FastAPI + Postgres + React
+  summary: Async Python API with a React front end
+  project_types:
+  - web_app
+  - api
+  skills:
+  - python
+  - fastapi
+  - react
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 600
+  risk: You own auth and migrations
+  as_of: '2026-10-08'
+- id: fastapi_neon_render
+  name: FastAPI + Neon Postgres on Render
+  summary: Python API with serverless Postgres
+  project_types:
+  - api
+  skills:
+  - python
+  - fastapi
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 0
+  risk: Free web tier sleeps; cold starts
+  as_of: '2026-10-08'
+- id: flask_sqlite_vps
+  name: Flask + SQLite on a small VPS
+  summary: Tiny Python app on one cheap server
+  project_types:
+  - web_app
+  - api
+  skills:
+  - python
+  - flask
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 2000
+  cost_inr_month: 400
+  risk: Single server; write concurrency limits
+  as_of: '2026-10-08'
+- id: laravel_mysql_vps
+  name: Laravel + MySQL on a small VPS
+  summary: PHP full-stack framework with queues and auth
+  project_types:
+  - web_app
+  - api
+  skills:
+  - php
+  - laravel
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 500
+  risk: You run the server
+  as_of: '2026-10-08'
+- id: rails_postgres_render
+  name: Rails + Postgres on Render
+  summary: Convention-over-configuration Ruby web app
+  project_types:
+  - web_app
+  - api
+  skills:
+  - ruby
+  - rails
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 10000
+  cost_inr_month: 600
+  risk: Hard to hire in India
+  as_of: '2026-10-08'
+- id: express_mongodb_atlas
+  name: Express + MongoDB Atlas
+  summary: Node API with a document database
+  project_types:
+  - web_app
+  - api
+  skills:
+  - node
+  - javascript
+  - express
+  - mongodb
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 5000
+  cost_inr_month: 0
+  risk: Schema drift; free cluster has size limits
+  as_of: '2026-10-08'
+- id: nestjs_postgres
+  name: NestJS + Postgres
+  summary: Structured TypeScript API
+  project_types:
+  - api
+  - web_app
+  skills:
+  - typescript
+  - node
+  - nestjs
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 20000
+  cost_inr_month: 600
+  risk: More boilerplate than Express
+  as_of: '2026-10-08'
+- id: spring_boot_postgres
+  name: Spring Boot + Postgres
+  summary: Java API suited to enterprise teams
+  project_types:
+  - api
+  - web_app
+  skills:
+  - java
+  - spring
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 50000
+  cost_inr_month: 800
+  risk: Heavier memory; slower to start small
+  as_of: '2026-10-08'
+- id: go_gin_postgres
+  name: Go (Gin) + Postgres
+  summary: Fast single-binary API on a small server
+  project_types:
+  - api
+  skills:
+  - go
+  - golang
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 100000
+  cost_inr_month: 400
+  risk: Smaller web ecosystem; verbose
+  as_of: '2026-10-08'
+- id: airflow_postgres_vps
+  name: Airflow + Postgres on a VPS
+  summary: Scheduled pipelines with retries and UI
+  project_types:
+  - data_pipeline
+  skills:
+  - python
+  - sql
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 0
+  cost_inr_month: 1200
+  risk: Operationally heavy for small jobs
+  as_of: '2026-10-08'
+- id: python_cron_duckdb
+  name: Python scripts + cron + DuckDB
+  summary: Simple scheduled pipelines on one machine
+  project_types:
+  - data_pipeline
+  skills:
+  - python
+  - sql
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 0
+  cost_inr_month: 0
+  risk: No built-in monitoring; single machine
+  as_of: '2026-10-08'
+- id: dbt_bigquery
+  name: dbt + BigQuery
+  summary: SQL transformations on a managed warehouse
+  project_types:
+  - data_pipeline
+  skills:
+  - sql
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 0
+  cost_inr_month: 0
+  risk: Query costs can surprise past the free quota
+  as_of: '2026-10-08'
+- id: langgraph_fastapi_pgvector
+  name: LangGraph + FastAPI + Postgres/pgvector
+  summary: Agentic LLM app with retrieval in one Postgres
+  project_types:
+  - ai_app
+  skills:
+  - python
+  - fastapi
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 5000
+  cost_inr_month: 0
+  risk: LLM free-tier quotas and rate limits
+  as_of: '2026-10-08'
+- id: streamlit_ollama
+  name: Streamlit + Ollama (local LLM)
+  summary: Private prototype with a local model
+  project_types:
+  - ai_app
+  skills:
+  - python
+  offline: full
+  mobile: false
+  indic_ok: true
+  max_users: 50
+  cost_inr_month: 0
+  risk: Needs a capable machine; not for public traffic
+  as_of: '2026-10-08'
+- id: nextjs_vercel_ai_sdk
+  name: Next.js + Vercel AI SDK + hosted LLM
+  summary: Chat-style AI web app
+  project_types:
+  - ai_app
+  - web_app
+  skills:
+  - react
+  - typescript
+  - javascript
+  - next.js
+  offline: none
+  mobile: false
+  indic_ok: true
+  max_users: 5000
+  cost_inr_month: 0
+  risk: Token costs scale with users
+  as_of: '2026-10-08'
+- id: tauri_sqlite
+  name: Tauri + SQLite
+  summary: Small desktop app with a web UI and local database
+  project_types:
+  - desktop
+  skills:
+  - rust
+  - javascript
+  - typescript
+  - react
+  offline: full
+  mobile: false
+  indic_ok: true
+  max_users: 1
+  cost_inr_month: 0
+  risk: Rust needed for native features
+  as_of: '2026-10-08'
+- id: electron_react_sqlite
+  name: Electron + React + SQLite
+  summary: Desktop app on web skills, works offline
+  project_types:
+  - desktop
+  skills:
+  - react
+  - javascript
+  - typescript
+  - node
+  offline: full
+  mobile: false
+  indic_ok: true
+  max_users: 1
+  cost_inr_month: 0
+  risk: Large install size; memory use
+  as_of: '2026-10-08'

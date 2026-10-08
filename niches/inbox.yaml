@@ -2,7 +2,7 @@
 name: inbox
 label: Inbox and DMs
 description: a personal or work email or direct message written to the owner by a person or organisation
-enabled: true
+enabled: false
 version: 1
 languages: [en, hi, pa]
 sensitivity: private

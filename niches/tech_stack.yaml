@@ -1,7 +1,7 @@
 # Phase 1 demo niche: needs no connectors and no private data.
 name: tech_stack
 label: Tech stack advisor
-description: a software project brief or question asking which technologies, frameworks, hosting or database to use
+description: a software project brief or question asking which technologies, frameworks, hosting or database to build it with
 enabled: true
 version: 1
 languages: [en, hi]
@@ -27,7 +27,7 @@ prompt: |
   why it fits, the main risk, and monthly cost at the stated scale (₹, free tiers first). Prefer what
   the team already knows. Recommend one. Keep the rationale to 3 sentences; put details in the option labels.
   Never recommend a technology that is not in the shortlist unless you say it is outside the catalog.
-actions: [create_task, notify, webhook]
+actions: [create_task, webhook]
 autonomy: suggest
 notify: {urgent_ping: false, digest: false}
 few_shot: 4
