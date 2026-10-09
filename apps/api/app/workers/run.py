@@ -139,9 +139,7 @@ class Worker:
         try:
             from app.graph import run as graph_run
 
-            # TODO(langgraph-builder): no public delete helper yet; use the runtime saver.
-            runtime = await graph_run._get_runtime()
-            await runtime.saver.adelete_thread(str(item_id))
+            await graph_run.delete_thread(item_id)
         except Exception:
             log.exception("checkpoint thread delete failed", extra={"item_id": item_id})
 

@@ -213,10 +213,10 @@ async def test_thread_delete_error_does_not_mask_failure(
 ) -> None:
     from app.graph import run
 
-    async def broken_runtime() -> None:
+    async def broken_delete(_: object) -> None:
         raise ConnectionError("checkpointer down")
 
-    monkeypatch.setattr(run, "_get_runtime", broken_runtime)
+    monkeypatch.setattr(run, "delete_thread", broken_delete)
     item, job = seeded
 
     async def boom(session: AsyncSession, claimed: Job) -> None:
