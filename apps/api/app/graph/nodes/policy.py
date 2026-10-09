@@ -13,16 +13,30 @@ Autonomy = Literal["suggest", "ask", "auto"]
 
 SCAM_RISK = "scam_or_phishing"
 SCAM_MIN_CONFIDENCE = 0.8
+SCAM_SUSPECT_MIN_CONFIDENCE = 0.5
 SCAM_WARNING = "Possible scam or phishing. Review carefully; automatic actions are disabled."
 EXPERT_WARNING = "Expert review recommended before acting."
+
+
+def _risk_confidence(triage: dict[str, Any] | None) -> float | None:
+    answer = ((triage or {}).get("answers") or {}).get("risk") or {}
+    confidence = answer.get("confidence")
+    return None if confidence is None else float(confidence)
 
 
 def is_scam(risk: str | None, triage: dict[str, Any] | None) -> bool:
     if risk != SCAM_RISK:
         return False
-    answer = ((triage or {}).get("answers") or {}).get("risk") or {}
-    confidence = answer.get("confidence")
-    return confidence is None or float(confidence) >= SCAM_MIN_CONFIDENCE
+    confidence = _risk_confidence(triage)
+    return confidence is None or confidence >= SCAM_MIN_CONFIDENCE
+
+
+def scam_suspected(risk: str | None, triage: dict[str, Any] | None) -> bool:
+    """Scam risk with confidence in [0.5, 0.8): never auto, but not a hard scam."""
+    if risk != SCAM_RISK or is_scam(risk, triage):
+        return False
+    confidence = _risk_confidence(triage)
+    return confidence is not None and confidence >= SCAM_SUSPECT_MIN_CONFIDENCE
 
 
 def needs_expert(niche: NicheConfig, haystack: str) -> bool:
@@ -41,10 +55,12 @@ def auto_allowed(niche: NicheConfig, decision: DecisionOut) -> bool:
 
 
 def choose_autonomy(
-    niche: NicheConfig, decision: DecisionOut, *, scam: bool, expert: bool
+    niche: NicheConfig, decision: DecisionOut, *, scam: bool, expert: bool, suspect: bool = False
 ) -> Autonomy:
     if scam:
         return "suggest"
+    if suspect and niche.autonomy == "auto":
+        return "ask"
     if niche.autonomy == "auto" and (expert or not auto_allowed(niche, decision)):
         return "ask"
     return niche.autonomy
@@ -57,11 +73,12 @@ def apply_policy(state: GraphState, niche: NicheConfig, view: store.ItemView) ->
     haystack = json.dumps(
         [view.content.get("title"), state.get("extracted"), out.rationale], default=str
     )
+    suspect = scam_suspected(view.risk, view.triage)
     expert = needs_expert(niche, haystack)
     warnings = ([SCAM_WARNING] if scam else []) + ([EXPERT_WARNING] if expert else [])
     stored = StoredDecision(
         **out.model_dump(),
-        autonomy=choose_autonomy(niche, out, scam=scam, expert=expert),
+        autonomy=choose_autonomy(niche, out, scam=scam, expert=expert, suspect=suspect),
         needs_expert=expert,
         warnings=warnings,
         niche_version=state.get("niche_version", niche.version),

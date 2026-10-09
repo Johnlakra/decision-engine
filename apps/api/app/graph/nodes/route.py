@@ -15,7 +15,8 @@ from app.schemas.triage import Answer, TriageRecord
 log = logging.getLogger(__name__)
 
 NO_DECISION_CHOICE = "B"  # needs_decision: A = yes, B = no
-SELF_VOUCHING_SOURCES = frozenset({"hint", "llm_fallback", "human"})  # confidence not required
+SELF_VOUCHING_SOURCES = frozenset({"hint", "human"})  # exempt from the gate
+UNSCORED_OK_SOURCES = frozenset({"llm_fallback"})  # gated only when it reports a confidence
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,9 @@ def _parse(triage: dict[str, Any] | None) -> TriageRecord | None:
 def _confident(answer: Answer, threshold: float) -> bool:
     if answer.source in SELF_VOUCHING_SOURCES:
         return True
-    return answer.confidence is not None and answer.confidence >= threshold
+    if answer.confidence is None:
+        return answer.source in UNSCORED_OK_SOURCES
+    return answer.confidence >= threshold
 
 
 def _accepted_niche(record: TriageRecord | None, registry: NicheRegistry) -> NicheConfig | None:
