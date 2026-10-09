@@ -92,11 +92,6 @@ async def test_bulk_over_cap_is_429_with_retry_after(
     assert int(response.headers["Retry-After"]) >= 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: repeat of an already-stored item at the daily cap gets 429, not 200 (FR-02, "
-    "app/api/v1/items.py:97 checks the cap before the idempotency lookup)",
-)
 @pytest.mark.usefixtures("cap_two")
 async def test_repeat_of_stored_item_at_cap_is_still_200(
     client: httpx.AsyncClient, db_session: AsyncSession, tenant: Tenant
@@ -107,3 +102,34 @@ async def test_repeat_of_stored_item_at_cap_is_still_200(
     repeat = await client.post("/v1/items", json=_body("f0"), headers=headers)
 
     assert repeat.status_code == 200
+
+
+@pytest.mark.usefixtures("cap_two")
+async def test_bulk_of_only_stored_items_at_cap_is_207_not_429(
+    client: httpx.AsyncClient, db_session: AsyncSession, tenant: Tenant
+) -> None:
+    headers = await _key(db_session, tenant, ["items:write"])
+    await _fill(client, headers)
+
+    response = await client.post(
+        "/v1/items/bulk", json={"items": [_body("f0"), _body("f1")]}, headers=headers
+    )
+
+    assert response.status_code == 207
+    assert all(row.get("id") for row in response.json()["results"])
+
+
+@pytest.mark.usefixtures("cap_two")
+async def test_bulk_at_cap_returns_stored_rows_and_refuses_new_ones(
+    client: httpx.AsyncClient, db_session: AsyncSession, tenant: Tenant
+) -> None:
+    headers = await _key(db_session, tenant, ["items:write"])
+    await _fill(client, headers)
+
+    response = await client.post(
+        "/v1/items/bulk", json={"items": [_body("f0"), _body("new")]}, headers=headers
+    )
+
+    assert response.status_code == 207
+    first, second = response.json()["results"]
+    assert first["id"] and second["error"] == "daily item cap reached"

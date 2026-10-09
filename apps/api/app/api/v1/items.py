@@ -14,7 +14,12 @@ from app.core.config import get_settings
 from app.core.errors import PROBLEM_JSON, ProblemError
 from app.core.time import utcnow
 from app.db.session import get_session
-from app.ingest.service import daily_cap_reached, ingest_one, seconds_until_utc_midnight
+from app.ingest.service import (
+    daily_cap_reached,
+    find_existing,
+    ingest_one,
+    seconds_until_utc_midnight,
+)
 from app.models import Decision, Item
 from app.schemas.ingest import MAX_BULK, BulkRow, IngestItemIn, IngestResult
 from app.schemas.items import DecisionItemOut, item_to_public
@@ -25,6 +30,7 @@ router = APIRouter(prefix="/items", tags=["items"])
 DAILY_CAP_TYPE = "https://decision-engine/problems/daily-item-cap"
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
+CAP_ROW_ERROR = "daily item cap reached"
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 Writer = Annotated[Principal, Depends(require_scope("items:write"))]
@@ -94,6 +100,10 @@ async def create_item(
     session: Session,
 ) -> IngestResult | JSONResponse:
     """Store the payload untouched and queue it for the pipeline. Idempotent."""
+    existing = await find_existing(session, principal.tenant_id, body.source, body.source_ref)
+    if existing is not None:  # idempotent repeat is never capped (FR-07 over FR-02)
+        response.status_code = 200
+        return IngestResult(id=str(existing.id), status=existing.status)
     cap = get_settings().items_per_day
     if await daily_cap_reached(session, principal.tenant_id, cap):
         return _cap_response(request)
@@ -128,22 +138,29 @@ async def create_items_bulk(
         raise ProblemError(
             422, "Validation failed", f"'items' must be a list of 1 to {MAX_BULK} objects"
         )
-    if await daily_cap_reached(session, principal.tenant_id, get_settings().items_per_day):
-        return _cap_response(request)
+    capped = await daily_cap_reached(session, principal.tenant_id, get_settings().items_per_day)
     results: list[BulkRow] = []
     for index, raw_row in enumerate(rows):
-        results.append(await _ingest_row(session, principal.tenant_id, index, raw_row))
+        results.append(await _ingest_row(session, principal.tenant_id, index, raw_row, capped))
+    refused = any(r.error == CAP_ROW_ERROR for r in results)
+    if refused and all(r.id is None for r in results):  # nothing stored or found: plain 429
+        return _cap_response(request)
     await session.commit()
     return BulkOut(results=results)
 
 
 async def _ingest_row(
-    session: AsyncSession, tenant_id: uuid.UUID, index: int, raw_row: Any
+    session: AsyncSession, tenant_id: uuid.UUID, index: int, raw_row: Any, capped: bool
 ) -> BulkRow:
     try:
         body = IngestItemIn.model_validate(raw_row)
     except ValidationError as exc:
         return BulkRow(index=index, error=_row_error(exc))
+    if capped:  # at the cap only already-stored rows pass; new ones are refused
+        existing = await find_existing(session, tenant_id, body.source, body.source_ref)
+        if existing is None:
+            return BulkRow(index=index, error=CAP_ROW_ERROR)
+        return BulkRow(index=index, id=str(existing.id), status=existing.status)
     try:
         async with session.begin_nested():
             item, _ = await ingest_one(session, tenant_id, body)

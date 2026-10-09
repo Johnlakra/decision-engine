@@ -4,10 +4,19 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, field_serializer
 
 from app.models import Decision, Item
 from app.schemas.content import NormalisedContent
+
+
+def _content_schema(schema: dict[str, Any]) -> None:
+    """Keep the documented type of ``content`` despite the untyped null-dropping serializer.
+
+    Without this the OpenAPI response type degrades to ``Any`` and the SDKs lose the model.
+    """
+    schema.clear()
+    schema["anyOf"] = [{"$ref": "#/components/schemas/NormalisedContent"}, {"type": "null"}]
 
 
 class LastDecision(BaseModel):
@@ -48,7 +57,7 @@ class DecisionItemOut(BaseModel):
     status: str
     language: str | None = None
     sensitivity: str
-    content: NormalisedContent | None = None
+    content: NormalisedContent | None = Field(default=None, json_schema_extra=_content_schema)
     niche: str | None = None
     urgency: int | None = None
     risk: str | None = None
@@ -59,6 +68,14 @@ class DecisionItemOut(BaseModel):
     last_decision: LastDecision | None = None
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("content", mode="wrap")
+    def _drop_null_content(self, value: Any, handler: SerializerFunctionWrapHandler) -> Any:
+        """Published schema types optional content fields as string: omit them when null (FR-10)."""
+        dumped = handler(value)
+        if isinstance(dumped, dict):
+            return {k: v for k, v in dumped.items() if v is not None}
+        return dumped
 
 
 def item_to_public(item: Item, last_decision: Decision | None) -> DecisionItemOut:

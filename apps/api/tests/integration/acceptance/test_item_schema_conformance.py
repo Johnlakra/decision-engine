@@ -31,11 +31,6 @@ def _without_null_content(body: dict) -> dict:  # type: ignore[type-arg]
     return {**body, "content": content}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: API emits content.summary/sender/url as null but schemas/decision_item.schema.json"
-    ":24-26 types them 'string' (NormalisedContent app/schemas/content.py:13-15 is str | None)",
-)
 async def test_api_output_validates_as_is_against_the_published_schema(
     client, account, factory, llm, use_laya
 ) -> None:  # type: ignore[no-untyped-def]

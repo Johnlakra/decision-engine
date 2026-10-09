@@ -39,6 +39,16 @@ async def daily_cap_reached(session: AsyncSession, tenant_id: uuid.UUID, cap: in
     return await items_today(session, tenant_id) >= cap
 
 
+async def find_existing(
+    session: AsyncSession, tenant_id: uuid.UUID, source: str, source_ref: str
+) -> Item | None:
+    """The stored item for (tenant, source, source_ref), if any (FR-07)."""
+    stmt = select(Item).where(
+        Item.tenant_id == tenant_id, Item.source == source, Item.source_ref == source_ref
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
 async def ingest_one(
     session: AsyncSession, tenant_id: uuid.UUID, body: IngestItemIn
 ) -> tuple[Item, bool]:
