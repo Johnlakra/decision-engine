@@ -78,7 +78,7 @@ def auto_classify(schema: type[BaseModel]) -> BaseModel:
 
 def install_llm(fake: FakeLLM, monkeypatch: pytest.MonkeyPatch) -> FakeLLM:
     """Script extract + decide (repeating), auto-answer classify unless the test scripted it."""
-    fake.script("normalise", EXTRACTED, repeat=True)
+    fake.script("normalise", {"entities": EXTRACTED}, repeat=True)  # ExtractOut shape
     fake.script("decide", DECISION, repeat=True)
 
     async def complete_json(

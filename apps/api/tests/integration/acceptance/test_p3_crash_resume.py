@@ -46,7 +46,11 @@ async def test_crash_in_decide_resumes_without_rerunning_extract(
     with WebhookReceiver() as receiver:
         subscribed = await client.post(
             "/v1/subscriptions",
-            json={"url": receiver.url, "events": ["decision.ready"], "secret": "p3-secret"},
+            json={
+                "url": receiver.url,
+                "events": ["decision.ready"],
+                "secret": "p3-secret-0123456789",
+            },
             headers=auth(account.key),
         )
         assert subscribed.status_code in (200, 201), subscribed.text
