@@ -124,8 +124,12 @@ def _hinted(item: Item, registry: NicheRegistry) -> NicheConfig | None:
 
 def _gate(work: _Work, candidate: str | None, registry: NicheRegistry) -> float:
     cfg = work.hinted or (registry.get(candidate) if candidate else None)
-    cfg = cfg or registry.get(FALLBACK_NICHE)
-    return cfg.triage.min_confidence if cfg else DEFAULT_GATE
+    if cfg is None or cfg.name == FALLBACK_NICHE:
+        # The fallback niche's own 0.0 only means "routing to generic is always allowed"; it must
+        # not let low-confidence answers through. Below DEFAULT_GATE the item goes to the LLM
+        # fallback or human triage, never discarded.
+        return DEFAULT_GATE
+    return cfg.triage.min_confidence
 
 
 def _record_laya(work: _Work, result: dict[str, Any] | None) -> None:

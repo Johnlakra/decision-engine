@@ -119,3 +119,20 @@ def test_scam_overrides_auto_autonomy_with_allow_listed_action() -> None:
     )  # fmt: skip
     assert choose_autonomy(niche, decision, scam=False, expert=False) == "auto"
     assert choose_autonomy(niche, decision, scam=True, expert=False) == "suggest"
+
+
+# FR-21, FR-24: fallback niche (min_confidence 0.0) must not accept low-confidence answers
+def test_gate_uses_default_for_fallback_and_unrouted_items() -> None:
+    from types import SimpleNamespace
+
+    from app.niches.registry import FALLBACK_NICHE
+    from app.triage.service import DEFAULT_GATE, _gate
+
+    generic = SimpleNamespace(name=FALLBACK_NICHE, triage=SimpleNamespace(min_confidence=0.0))
+    niche = SimpleNamespace(name="email", triage=SimpleNamespace(min_confidence=0.6))
+    registry = SimpleNamespace(get=lambda n: {FALLBACK_NICHE: generic, "email": niche}.get(n))
+    work = SimpleNamespace(hinted=None)
+    assert _gate(work, None, registry) == DEFAULT_GATE  # type: ignore[arg-type]
+    assert _gate(work, FALLBACK_NICHE, registry) == DEFAULT_GATE  # type: ignore[arg-type]
+    assert _gate(SimpleNamespace(hinted=generic), None, registry) == DEFAULT_GATE  # type: ignore[arg-type]
+    assert _gate(work, "email", registry) == 0.6  # type: ignore[arg-type]
