@@ -7,7 +7,7 @@ import asyncio
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import require_scope
 from app.core.config import get_settings
@@ -35,6 +35,26 @@ class DecideIn(BaseModel):
 
 
 class DecideOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "answers": {
+                        "needs_decision": {
+                            "type": "choice",
+                            "choice": "yes",
+                            "probabilities": {"yes": 0.93, "no": 0.07},
+                            "confidence": 0.93,
+                            "source": "laya",
+                        }
+                    },
+                    "model": "laya",
+                    "fallback": False,
+                }
+            ]
+        }
+    )
+
     answers: dict[str, Answer]
     model: str | None = None
     fallback: bool

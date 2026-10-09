@@ -7,7 +7,7 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.api.deps import require_scope
 from app.core.errors import ProblemError
@@ -24,6 +24,8 @@ Writer = Annotated[Principal, Depends(require_scope("items:write"))]
 
 
 class DecisionResult(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"status": "done"}]})
+
     status: Literal["done", "rejected", "snoozed", "acting"]
 
 

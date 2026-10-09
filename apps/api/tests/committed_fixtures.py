@@ -16,6 +16,7 @@ from app.api.deps import get_rate_limiter
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import get_engine
+from app.graph.setup import CHECKPOINT_SETUP_LOCK_KEY
 from app.models import Tenant
 from app.security.api_keys import create_api_key
 from app.security.rate_limit import MemoryRateLimiter
@@ -27,7 +28,6 @@ CHECKPOINT_TABLES = (
     "checkpoint_blobs",
     "checkpoint_writes",
 )
-CHECKPOINT_SETUP_LOCK_KEY = 7_340_001  # the constant app.graph.setup will use (ADR 0003)
 
 
 def psycopg_dsn(url: str) -> str:
@@ -111,11 +111,16 @@ async def api_client(
     committed_db: async_sessionmaker[AsyncSession],
 ) -> AsyncIterator[httpx.AsyncClient]:
     """httpx client on the ASGI app, using the committed DB and an in-memory rate limiter."""
+    from app.graph import run as graph_run
     from app.main import create_app
 
     app = create_app()
+    await graph_run.open_runtime()  # ASGITransport does not run the lifespan
     limiter = MemoryRateLimiter()
     app.dependency_overrides[get_rate_limiter] = lambda: limiter
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
-        yield client
+        try:
+            yield client
+        finally:
+            await graph_run.close_runtime()

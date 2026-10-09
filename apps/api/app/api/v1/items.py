@@ -32,6 +32,19 @@ Reader = Annotated[Principal, Depends(require_scope("items:read"))]
 
 
 class BulkOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "results": [
+                        {"index": 0, "id": "0192f0c2-7a52-7c1e-9d3b-1f2a3b4c5d6e", "status": "new"},
+                        {"index": 1, "error": "source: Field required"},
+                    ]
+                }
+            ]
+        }
+    )
+
     results: list[BulkRow]
 
 

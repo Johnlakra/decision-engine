@@ -57,6 +57,12 @@ class IngestItemIn(BaseModel):
 
 
 class IngestResult(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"id": "0192f0c2-7a52-7c1e-9d3b-1f2a3b4c5d6e", "status": "new"}]
+        }
+    )
+
     id: str
     status: str
 

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.models import Decision, Item
 from app.schemas.content import NormalisedContent
@@ -18,6 +18,28 @@ class LastDecision(BaseModel):
 
 
 class DecisionItemOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "0192f0c2-7a52-7c1e-9d3b-1f2a3b4c5d6e",
+                    "tenant_id": "0192f0c2-0000-7000-8000-000000000001",
+                    "source": "manual",
+                    "source_ref": "bill-2026-10",
+                    "received_at": "2026-10-09T08:30:00Z",
+                    "status": "awaiting_approval",
+                    "language": "en",
+                    "sensitivity": "public",
+                    "niche": "generic",
+                    "urgency": 2,
+                    "risk": "normal",
+                    "created_at": "2026-10-09T08:30:00Z",
+                    "updated_at": "2026-10-09T08:30:05Z",
+                }
+            ]
+        }
+    )
+
     id: uuid.UUID
     tenant_id: uuid.UUID
     source: str

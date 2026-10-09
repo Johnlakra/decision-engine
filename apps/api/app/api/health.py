@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_principal
+from app.core.config import get_settings
 from app.db.redis import ping_redis
 from app.db.session import get_session
 from app.llm import gateway
@@ -64,6 +65,7 @@ class DeepHealth(BaseModel):
                     "niches": {"loaded": 5, "errors": []},
                     "queue_depth": 0,
                     "oldest_job_age_s": None,
+                    "db_pooler": False,
                 }
             ]
         }
@@ -77,6 +79,7 @@ class DeepHealth(BaseModel):
     niches: dict[str, Any]
     queue_depth: int | None
     oldest_job_age_s: float | None
+    db_pooler: bool = False  # DATABASE_URL is a pooled endpoint (prepared statements off)
 
 
 async def _laya_status(request: Request) -> str:
@@ -142,5 +145,6 @@ async def health_deep(
         niches={"loaded": len(registry.all()), "errors": errors},
         queue_depth=depth,
         oldest_job_age_s=oldest,
+        db_pooler=get_settings().db_pooler,
     )
     return JSONResponse(body.model_dump(), status_code=503 if db == "down" else 200)

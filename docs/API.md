@@ -32,7 +32,8 @@ problem+json `{"type": "https://decision-engine/problems/daily-item-cap", "title
 with `Retry-After` = seconds until 00:00 UTC. It is a soft cap: an accepted bulk call may overshoot (ADR 0004).
 
 ### `POST /v1/items/bulk` (FR-03)
-`{"items": [ <item>, … ≤500 ]}` → `207 {"results": [{"index":0,"id":"…","status":"new"}, {"index":1,"error":{…}}]}`
+`{"items": [ <item>, … ≤500 ]}` → `207 {"results": [{"index":0,"id":"…","status":"new"}, {"index":1,"error":"source: Field required"}]}`
+A failed row carries `error` as a short `field: message` string (first validation error); the other rows are unaffected.
 
 ### `GET /v1/items?status=awaiting_approval&niche=inbox&source=gmail&q=text&cursor=…`
 ### `GET /v1/items/{id}` → full DecisionItem (schemas/decision_item.schema.json)
@@ -99,7 +100,7 @@ also accept `"acting"`, reserved for long-running actions in later phases.
 - `GET/POST/DELETE /v1/subscriptions` `{url, events: ["decision.ready","decision.made","action.done","item.triaged"], secret}`
 - Scope `admin`. `url` must be `https` and resolve to a public address (loopback, RFC 1918, link-local, metadata,
   ULA and multicast are refused with `422`; dev-only `WEBHOOK_ALLOW_PRIVATE_URLS=true` relaxes this). `secret` is
-  stored Fernet-encrypted and never returned.
+  stored Fernet-encrypted and never returned (min 16 characters). `POST` → `201`, `DELETE` → `204`, `GET` → `{"data": [...]}`.
 - Delivery: `POST url` body `{"event":"decision.made","id":"evt_<uuid7>","created_at":"…","data":{<DecisionItem>}}`
   (`data` never contains `raw`, `hints` or `callback_url`). Headers: `X-DE-Signature: t=<unix>,v1=<hex
   hmac_sha256(secret, t + "." + body)>` (same scheme as inbound, 5-min tolerance), `X-DE-Event: <event>`,

@@ -25,9 +25,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     log.info("niches loaded: %s", ",".join(n.name for n in registry.all()))
     laya = HttpLayaClient.from_settings(settings)
     app.state.laya = laya
+    from app.graph import run as graph_run  # lazy: keeps langgraph out of import-time paths
+
+    await graph_run.open_runtime()
     try:
         yield
     finally:
+        await graph_run.close_runtime()
         if laya is not None:
             await laya.aclose()
 
