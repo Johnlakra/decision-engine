@@ -5,6 +5,7 @@
 .env.*
 !.env.example
 data
+!data/*.yaml
 docs
 secrets
 **/__pycache__
