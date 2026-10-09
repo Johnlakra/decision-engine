@@ -1,8 +1,7 @@
 # decision-engine-client
 
 Python client for the Decision Engine `/v1` API. `_generated/` is produced by `openapi-python-client`
-(do not edit); `DecisionEngine` adds bearer auth, timeouts and retries (429 honouring `Retry-After`, 5xx,
-connection errors).
+(do not edit); `DecisionEngine` adds bearer auth, timeouts and retries.
 
 ```python
 from decision_engine_client import DecisionEngine
@@ -13,6 +12,20 @@ payload = IngestItemInPayloadType0.from_dict({"title": "Hello"})
 result = de.create_item(IngestItemIn(source="radar", source_ref="story-42", payload=payload))
 print(result.id)
 ```
+
+## Retry policy
+
+Retries use a method plus path allow-list (backoff 0.5 s doubling, `Retry-After` honoured):
+
+| Call | Retried on |
+|---|---|
+| `GET` anything | 429, 5xx, connect error, read timeout, protocol error |
+| `POST /v1/items`, `POST /v1/items/bulk` | same (ingest is idempotent on `source`+`source_ref`) |
+| `POST /v1/decide` | only 429 with `Retry-After`; never on 5xx or timeout (503 `no-private-provider` is permanent) |
+| `POST /v1/items/{id}/decision` | only 429 with `Retry-After` |
+| everything else (subscriptions, ...) | only 429 with `Retry-After` |
+
+`decide()` uses a timeout of `max(timeout, 35)` seconds because the server budget is 30 s.
 
 `de.raw` is the full generated `AuthenticatedClient` for any other endpoint.
 

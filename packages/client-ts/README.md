@@ -37,3 +37,11 @@ It throws `InvalidSignature` for a malformed header, a timestamp outside 300 s (
 
 `npm ci`, `npm run gen` (regenerate types from `../openapi.json`), `npm run lint`, `npm test`, `npm run build`.
 Regenerate everything from the repo root with `make sdk`.
+
+## Retries
+
+`createClient` does not retry. If you add retries in a custom `fetch`, mirror the Python SDK policy:
+retry `GET`, `POST /v1/items` and `POST /v1/items/bulk` on 429/5xx/network errors (ingest is idempotent
+on `source`+`source_ref`); for `POST /v1/decide`, `POST /v1/items/{id}/decision` and everything else
+retry only a 429 that has `Retry-After`. Never retry `/v1/decide` on 5xx or timeout, and give it a
+timeout of at least 35 s (the server budget is 30 s).
