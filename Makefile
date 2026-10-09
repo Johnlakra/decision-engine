@@ -56,9 +56,11 @@ eval:
 	@test -n "$(NICHE)" || { echo "usage: make eval NICHE=<niche>"; exit 2; }
 	$(API) python -m scripts.eval --niche $(NICHE)
 
-# Step 1.10 fills this in: export_openapi.py then the pinned Python and TypeScript generators.
+# Step 1.10 (ADR 0006): export spec, then pinned Python and TypeScript generators. CI: git diff --exit-code packages/
 sdk:
-	@echo "sdk: not implemented yet (Phase 1 step 1.10)"
+	$(API) python -m scripts.export_openapi
+	packages/gen_client_py.sh
+	cd packages/client-ts && npm ci && npm run gen
 
 # Step 1.11: live acceptance run against a running stack (make dev).
 accept-phase1:

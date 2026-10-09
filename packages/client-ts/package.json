@@ -1,0 +1,29 @@
+{
+  "name": "@decision-engine/client",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Decision Engine /v1 API",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "gen": "openapi-typescript ../openapi.json -o src/schema.d.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.21",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

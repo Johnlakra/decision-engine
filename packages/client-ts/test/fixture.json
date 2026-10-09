@@ -1,0 +1,6 @@
+{
+  "secret": "whsec_test_secret_placeholder",
+  "body": "{\"event\":\"item.decided\",\"id\":\"abc\"}",
+  "timestamp": 1800000000,
+  "header": "t=1800000000,v1=da55e6235e70f83b382a55aa4547669a95c11c0f374fefd693defa0d504e7381"
+}
