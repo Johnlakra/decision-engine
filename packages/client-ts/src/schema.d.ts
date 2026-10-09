@@ -604,7 +604,6 @@ export interface components {
          * ReloadResponse
          * @example {
          *       "loaded": [
-         *         "agriculture",
          *         "generic",
          *         "inbox",
          *         "news_radar",

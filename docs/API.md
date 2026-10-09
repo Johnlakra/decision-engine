@@ -64,7 +64,7 @@ also accept `"acting"`, reserved for long-running actions in later phases.
     "sell": {"type": "choice", "instructions": "Sell the wheat now or hold?",
              "criteria": {"A": "sell now", "B": "hold 1-2 weeks", "C": "hold > 2 weeks"}}
   },
-  "niche": "agriculture",          // optional: also run that niche's tools + LLM decision
+  "niche": "tech_stack",           // optional: also run that niche's tools + LLM decision
   "explain": true,                 // optional: LLM rationale
   "language": "pa",                // optional: answer language for rationale
   "sensitivity": "public"          // optional, default public (ADR 0005); private → only private_ok providers
@@ -72,9 +72,11 @@ also accept `"acting"`, reserved for long-running actions in later phases.
 ```
 → `200 {"answers": {"sell": {"choice":"B","probabilities":{…},"confidence":0.71}}, "decision": {…}?, "explanation": "…"?, "model": "laya-english", "fallback": false}`
 - `fallback: true` when Laya gave no opinion and the LLM fallback classifier answered. Laya mode does not gate this endpoint.
-- `decision` only with `niche` (runs extract/tools/decide/policy; writes nothing). `explanation` (additive) only with
-  `explain` and no `niche`.
-- Errors: `422` invalid questions (schema, ≤ 16 questions) · `503` fallback needed but unavailable, or private with no
+- `decision` only with `niche` (runs extract/tools/decide/policy; writes nothing). One-shot autonomy is always
+  `suggest` and `warnings` carries `"one-shot: no scam screening"` (no triage risk is available). A private niche forces
+  private routing even when `sensitivity` is `public`. `explanation` (additive) is returned whenever `explain` is true,
+  with or without `niche`.
+- Errors: `422` invalid questions (schema, ≤ 16 questions) or unknown or disabled niche · `503` fallback needed but unavailable, or private with no
   `private_ok` provider (`type: .../no-private-provider`) · `504` after `DECIDE_TIMEOUT_SECONDS` (default 30).
 
 ## Uploads (FR-04)
