@@ -17,9 +17,7 @@ router = APIRouter(prefix="/niches", tags=["niches"])
 class ReloadResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [
-                {"loaded": ["generic", "inbox", "news_radar", "tech_stack"]}
-            ]
+            "examples": [{"loaded": ["generic", "inbox", "news_radar", "tech_stack"]}]
         }
     )
 
