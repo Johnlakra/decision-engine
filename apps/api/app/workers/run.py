@@ -5,7 +5,7 @@ import contextlib
 import signal
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import datetime
 
 import asyncpg
@@ -21,11 +21,14 @@ from app.models.job import Job
 from app.models.status import can_transition, transition
 from app.workers import queue
 from app.workers.handlers import HANDLERS, Handler, UnsupportedJob
+from app.workers.pipeline import prepare_batch
 
 log = get_logger("app.workers")
 
 MIN_POLL_S = 1.0
 RECLAIM_EVERY_S = 60.0
+
+Prepare = Callable[[async_sessionmaker[AsyncSession], Sequence[Job]], Awaitable[None]]
 
 
 def is_active_hour(now_local: datetime, spec: tuple[int, int]) -> bool:
@@ -51,11 +54,15 @@ class Worker:
         *,
         session_factory: async_sessionmaker[AsyncSession] | None = None,
         handlers: Mapping[JobKind, Handler] | None = None,
+        prepare: Prepare | None = None,
+        manage_graph: bool = True,
     ) -> None:
         self.worker_id = worker_id
         self.settings = settings
         self._factory = session_factory or async_session_factory()
         self._handlers = handlers if handlers is not None else HANDLERS
+        self._prepare = prepare
+        self._manage_graph = manage_graph
         self._stop = asyncio.Event()
         self._wake = asyncio.Event()
         self._last_reclaim = 0.0
@@ -71,6 +78,8 @@ class Worker:
                 session, worker_id=self.worker_id, limit=self.settings.worker_batch_size
             )
             await session.commit()
+        if jobs and (prepare := self._prepare) is not None:
+            await self._run_prepare(prepare, jobs)
         for index, job in enumerate(jobs):
             if self._stop.is_set():
                 async with self._factory() as session:
@@ -79,6 +88,12 @@ class Worker:
                 break
             await self._process(job)
         return len(jobs)
+
+    async def _run_prepare(self, prepare: Prepare, jobs: list[Job]) -> None:
+        try:
+            await prepare(self._factory, jobs)
+        except Exception:
+            log.exception("prepare hook failed; handlers continue")
 
     async def _process(self, job: Job) -> None:
         with log_context(job_id=job.id, tenant_id=job.tenant_id, **self._item_ctx(job)):
@@ -135,12 +150,33 @@ class Worker:
             await asyncio.wait_for(self._wake.wait(), timeout=seconds)
         self._wake.clear()
 
+    async def _open_graph(self) -> None:
+        if not self._manage_graph:
+            return
+        from app.graph.run import open_runtime
+
+        try:
+            await open_runtime()
+        except Exception:
+            log.exception("graph runtime failed to open; will retry on first use")
+
+    async def _close_graph(self) -> None:
+        if not self._manage_graph:
+            return
+        from app.graph.run import close_runtime
+
+        try:
+            await close_runtime()
+        except Exception:
+            log.exception("graph runtime close failed")
+
     async def run_forever(self) -> None:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             with contextlib.suppress(NotImplementedError, RuntimeError):
                 loop.add_signal_handler(sig, self.stop)
         listener = await self._listen()
+        await self._open_graph()
         max_s = self.settings.worker_idle_poll_seconds
         idle = 0
         log.info("worker started", extra={"worker_id": self.worker_id})
@@ -161,13 +197,14 @@ class Worker:
         finally:
             if listener is not None:
                 await listener.close()
+            await self._close_graph()
             log.info("worker stopped", extra={"worker_id": self.worker_id})
 
 
 def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
-    worker = Worker(f"worker-{uuid.uuid4().hex[:8]}", settings)
+    worker = Worker(f"worker-{uuid.uuid4().hex[:8]}", settings, prepare=prepare_batch)
     asyncio.run(worker.run_forever())
 
 

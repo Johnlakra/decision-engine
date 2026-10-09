@@ -16,12 +16,22 @@ from app.core.config import Settings
 from app.core.ids import new_id
 from app.core.time import utcnow
 from app.models import Item, Job, Tenant
-from app.models.enums import JobKind
+from app.models.enums import ItemStatus, JobKind
+from app.models.status import transition
 from app.workers import queue
-from app.workers.handlers import HANDLERS
 from app.workers.run import Worker
 
 pytestmark = pytest.mark.integration
+
+
+async def advance_stub(session: AsyncSession, job: Job) -> None:
+    """Minimal PROCESS handler for queue-mechanics tests: new -> normalised, no LLM or graph."""
+    item = await session.get(Item, job.item_id, with_for_update=True)
+    assert item is not None
+    transition(item, ItemStatus.NORMALISED)
+
+
+STUB_HANDLERS = {JobKind.PROCESS: advance_stub}
 
 
 @pytest_asyncio.fixture
@@ -60,7 +70,13 @@ async def seeded(factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[tup
 
 
 def _worker(factory: async_sessionmaker[AsyncSession], **kwargs: object) -> Worker:
-    return Worker("test-worker", Settings(worker_batch_size=50), session_factory=factory, **kwargs)  # type: ignore[arg-type]
+    return Worker(
+        "test-worker",
+        Settings(worker_batch_size=50),
+        session_factory=factory,
+        manage_graph=False,
+        **kwargs,
+    )  # type: ignore[arg-type]
 
 
 async def _reload(
@@ -76,7 +92,7 @@ async def test_one_iteration_normalises_item_and_completes_job(
     factory: async_sessionmaker[AsyncSession], seeded: tuple[Item, Job]
 ) -> None:
     item, job = seeded
-    await _worker(factory, handlers=HANDLERS).run_once()
+    await _worker(factory, handlers=STUB_HANDLERS).run_once()
     fresh_item, fresh_job = await _reload(factory, item, job)
     assert fresh_item.status == "normalised"
     assert fresh_job.status == "done"

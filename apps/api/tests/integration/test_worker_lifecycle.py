@@ -21,14 +21,24 @@ from app.core.config import Settings
 from app.core.ids import new_id
 from app.core.time import utcnow
 from app.models import Item, Job, Tenant
-from app.models.enums import JobKind
+from app.models.enums import ItemStatus, JobKind
+from app.models.status import transition
 from app.workers import queue
-from app.workers.handlers import HANDLERS, UnsupportedJob, handle_process
 from app.workers.run import Worker
 
 pytestmark = pytest.mark.integration
 
 Factory = async_sessionmaker[AsyncSession]
+
+
+async def advance_stub(session: AsyncSession, job: Job) -> None:
+    """Minimal PROCESS handler for queue-mechanics tests: new -> normalised, no LLM or graph."""
+    item = await session.get(Item, job.item_id, with_for_update=True)
+    assert item is not None
+    transition(item, ItemStatus.NORMALISED)
+
+
+STUB_HANDLERS = {JobKind.PROCESS: advance_stub}
 
 
 @pytest_asyncio.fixture
@@ -84,7 +94,8 @@ async def _state(factory: Factory, item_id: Any, job_id: Any) -> tuple[str, str,
 
 def _worker(factory: Factory, database_url: str, **kwargs: Any) -> Worker:
     settings = Settings(_env_file=None, database_url=database_url, worker_batch_size=10)  # type: ignore[arg-type]
-    return Worker("life-worker", settings, session_factory=factory, **kwargs)
+    kwargs.setdefault("handlers", STUB_HANDLERS)
+    return Worker("life-worker", settings, session_factory=factory, manage_graph=False, **kwargs)
 
 
 async def test_sigterm_finishes_current_job_and_releases_the_rest(
@@ -99,7 +110,7 @@ async def test_sigterm_finishes_current_job_and_releases_the_rest(
         started.set()
         os.kill(os.getpid(), signal.SIGTERM)  # arrives while this job is mid-flight
         await asyncio.sleep(0.2)  # the loop gets the signal during this await
-        await handle_process(session, job)
+        await advance_stub(session, job)
 
     worker._handlers = {JobKind.PROCESS: handler}
     await asyncio.wait_for(worker.run_forever(), timeout=15)
@@ -176,7 +187,7 @@ async def test_crashed_worker_job_is_reclaimed_and_finished_by_next_worker(
         assert job is not None
         job.locked_at = utcnow() - timedelta(minutes=10)
         await session.commit()
-    worker = _worker(factory, migrated_db, handlers=HANDLERS)
+    worker = _worker(factory, migrated_db, handlers=STUB_HANDLERS)
     await worker._maybe_reclaim()
     await worker.run_once()
     assert await _state(factory, item_id, job_id) == ("normalised", "done", 2)
@@ -192,32 +203,3 @@ async def test_unknown_job_kind_is_failed_with_backoff_not_dropped(
     assert job.status == "queued" and job.last_error == "UnsupportedJob"
     assert job.run_at > utcnow()
     assert (await _state(factory, item_id, job_id))[0] == "new"
-
-
-# --- handle_process contract ---
-
-
-async def test_handle_process_without_item_id_raises(
-    db_session: AsyncSession, tenant: Tenant
-) -> None:
-    job = Job(tenant_id=tenant.id, kind="process", item_id=None)
-    with pytest.raises(UnsupportedJob, match="item_id"):
-        await handle_process(db_session, job)
-
-
-async def test_handle_process_with_missing_item_raises(
-    db_session: AsyncSession, tenant: Tenant
-) -> None:
-    job = Job(tenant_id=tenant.id, kind="process", item_id=new_id())
-    with pytest.raises(UnsupportedJob, match="not found"):
-        await handle_process(db_session, job)
-
-
-async def test_handle_process_moves_new_item_to_normalised(
-    db_session: AsyncSession, tenant: Tenant
-) -> None:
-    item = Item(id=new_id(), tenant_id=tenant.id, source="manual", source_ref="hp-1", raw={})
-    db_session.add(item)
-    await db_session.flush()
-    await handle_process(db_session, Job(tenant_id=tenant.id, kind="process", item_id=item.id))
-    assert item.status == "normalised"
