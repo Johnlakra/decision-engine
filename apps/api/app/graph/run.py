@@ -8,6 +8,7 @@ Public API
     run_item(item_id) -> GraphOutcome
     resume_item(item_id, tenant_id, body: DecisionIn) -> GraphOutcome
     unsnooze_item(item_id) -> None
+    delete_thread(item_id) -> None   # drop a failed item's checkpoints
     open_runtime() / close_runtime() / use_runtime(saver)   # lifecycle of the checkpointer pool
 """
 
@@ -44,6 +45,7 @@ __all__ = [
     "ItemNotFound",
     "NotAwaitingApproval",
     "close_runtime",
+    "delete_thread",
     "open_runtime",
     "resume_item",
     "run_item",
@@ -184,6 +186,12 @@ async def resume_item(
 
 def _check_option(decision: dict[str, Any] | None, body: DecisionIn) -> None:
     store_approval.resolve_option(decision, body)  # raises InvalidDecision
+
+
+async def delete_thread(item_id: uuid.UUID | str) -> None:
+    """Delete the item's checkpoint thread of a failed item; opens the runtime if needed."""
+    runtime = await _get_runtime()
+    await runtime.saver.adelete_thread(str(item_id))
 
 
 async def unsnooze_item(item_id: uuid.UUID | str) -> None:
