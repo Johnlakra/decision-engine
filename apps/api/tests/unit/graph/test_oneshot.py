@@ -152,6 +152,26 @@ async def test_niche_decision_runs_extract_tools_decide_policy(fake_llm: FakeLLM
     assert [c.purpose for c in fake_llm.calls] == ["normalise", "decide"]
 
 
+async def test_niche_decision_is_always_suggest_with_no_scam_warning(fake_llm: FakeLLM) -> None:
+    fake_llm.script("normalise", {"entities": {}}).script("decide", DECISION_OUT)
+
+    result = await run(FakeLayaClient(), niche="generic")
+
+    assert result.decision is not None
+    assert result.decision["autonomy"] == "suggest"
+    assert "one-shot: no scam screening" in result.decision["warnings"]
+
+
+async def test_explain_is_honoured_with_niche(fake_llm: FakeLLM) -> None:
+    fake_llm.script("normalise", {"entities": {}})
+    fake_llm.script("decide", DECISION_OUT).script("decide", "Because prices rise.")
+
+    result = await run(FakeLayaClient(), niche="generic", explain=True)
+
+    assert result.decision is not None
+    assert result.explanation == "Because prices rise."
+
+
 async def test_niche_decision_prompt_fences_injection(fake_llm: FakeLLM) -> None:
     fake_llm.script("normalise", {"entities": {}}).script("decide", DECISION_OUT)
 

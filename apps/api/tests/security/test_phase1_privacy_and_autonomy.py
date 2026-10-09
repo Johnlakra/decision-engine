@@ -37,11 +37,6 @@ def registry(monkeypatch: pytest.MonkeyPatch) -> NicheRegistry:
     return reg
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="AUDIT-P1-M1: /v1/decide classify fallback ignores the niche's private sensitivity "
-    "(ADR 0005 decision 4); remove this marker when fixed",
-)
 async def test_private_niche_with_public_body_never_reaches_public_provider(
     registry: NicheRegistry, fake_llm: FakeLLM
 ) -> None:
