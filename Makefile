@@ -1,4 +1,4 @@
-.PHONY: dev down test test-unit test-integration lint fmt migrate api-key demo-item laya-up smoke-llm smoke-laya seed eval
+.PHONY: dev down test test-unit test-integration lint fmt migrate api-key demo-item laya-up smoke-llm smoke-laya seed eval sdk accept-phase1
 
 API = cd apps/api && uv run
 # Commands that act on the running compose stack (its DB host `db` only resolves inside compose).
@@ -48,8 +48,18 @@ smoke-llm:
 smoke-laya:
 	$(API) python -m app.triage.smoke
 
+# scripts/ lives in apps/api/scripts (run as modules from apps/api).
 seed:
-	@echo "seed: Phase 1 (not implemented yet)"
+	$(API) python -m scripts.seed $(if $(LIMIT),--limit $(LIMIT),)
 
 eval:
-	@echo "eval: Phase 1 (not implemented yet; usage: make eval NICHE=x)"
+	@test -n "$(NICHE)" || { echo "usage: make eval NICHE=<niche>"; exit 2; }
+	$(API) python -m scripts.eval --niche $(NICHE)
+
+# Step 1.10 fills this in: export_openapi.py then the pinned Python and TypeScript generators.
+sdk:
+	@echo "sdk: not implemented yet (Phase 1 step 1.10)"
+
+# Step 1.11: live acceptance run against a running stack (make dev).
+accept-phase1:
+	$(API) python -m scripts.accept_phase1

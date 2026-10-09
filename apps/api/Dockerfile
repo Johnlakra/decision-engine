@@ -28,6 +28,7 @@ WORKDIR /srv/apps/api
 COPY apps/api/ ./
 COPY niches/ /srv/niches/
 COPY schemas/ /srv/schemas/
+COPY data/*.yaml /srv/data/
 RUN chmod +x docker-entrypoint.sh && chown -R app:app /srv
 USER app
 EXPOSE 8000
