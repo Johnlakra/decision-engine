@@ -11,8 +11,11 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import partial
 from typing import Any
+from urllib.parse import urlsplit
 
+import httpcore
 import httpx
 from sqlalchemy import any_, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.ids import new_id
 from app.core.time import utcnow
-from app.integrations.ssrf import UnsafeUrl, check_url
+from app.integrations.pinned import pinned_transport
+from app.integrations.ssrf import Resolver, UnsafeUrl, check_url
 from app.models import Decision, Item, Job, WebhookDelivery, WebhookSubscription
 from app.models.enums import DeliveryStatus, JobKind
 from app.schemas.items import item_to_public
@@ -148,14 +152,28 @@ def _record_failure(
 
 
 async def deliver_once(
-    delivery: WebhookDelivery, subscription: WebhookSubscription, *, now: datetime | None = None
+    delivery: WebhookDelivery,
+    subscription: WebhookSubscription,
+    *,
+    now: datetime | None = None,
+    resolver: Resolver | None = None,
+    network_backend: httpcore.AsyncNetworkBackend | None = None,
 ) -> DeliveryOutcome:
-    """Make one attempt and update the delivery row. Never raises for HTTP/network failures."""
+    """Make one attempt and update the delivery row. Never raises for HTTP/network failures.
+
+    The connection is pinned to the addresses the SSRF check vetted (no second DNS lookup),
+    and proxy environment variables are ignored, so neither can route around the check.
+    """
     moment = now or utcnow()
     settings = get_settings()
     try:
-        await asyncio.to_thread(
-            check_url, subscription.url, allow_private=settings.webhook_allow_private_urls
+        vetted = await asyncio.to_thread(
+            partial(
+                check_url,
+                subscription.url,
+                allow_private=settings.webhook_allow_private_urls,
+                resolver=resolver,
+            )
         )
     except UnsafeUrl:
         log.warning("webhook delivery=%s refused: unsafe url", delivery.id)
@@ -169,8 +187,15 @@ async def deliver_once(
         "X-DE-Delivery": str(delivery.id),
     }
     try:
+        hostname = urlsplit(subscription.url).hostname or ""
+        transport = (
+            pinned_transport(hostname, vetted, network_backend=network_backend) if vetted else None
+        )
         async with httpx.AsyncClient(
-            timeout=settings.webhook_timeout_seconds, follow_redirects=False
+            timeout=settings.webhook_timeout_seconds,
+            follow_redirects=False,
+            trust_env=False,
+            transport=transport,
         ) as client:
             response = await client.post(subscription.url, content=body, headers=headers)
     except httpx.HTTPError as exc:

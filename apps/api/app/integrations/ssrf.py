@@ -29,8 +29,12 @@ def _is_public(address: str) -> bool:
     return ip.is_global and not ip.is_multicast
 
 
-def check_url(url: str, *, allow_private: bool, resolver: Resolver | None = None) -> None:
-    """Raise UnsafeUrl unless ``url`` is https (or allowed) and resolves only to public IPs."""
+def check_url(url: str, *, allow_private: bool, resolver: Resolver | None = None) -> list[str]:
+    """Raise UnsafeUrl unless ``url`` is https (or allowed) and resolves only to public IPs.
+
+    Returns the vetted addresses so the caller can pin its connection to them (empty when
+    ``allow_private`` skips resolution).
+    """
     try:
         parts = urlsplit(url)
         host = parts.hostname
@@ -42,7 +46,7 @@ def check_url(url: str, *, allow_private: bool, resolver: Resolver | None = None
     if parts.username or parts.password:
         raise UnsafeUrl("credentials in URL are not allowed")
     if allow_private:
-        return
+        return []
     if parts.scheme != "https":
         raise UnsafeUrl("URL must use https")
     try:
@@ -56,3 +60,4 @@ def check_url(url: str, *, allow_private: bool, resolver: Resolver | None = None
         raise UnsafeUrl("host does not resolve")
     if not all(_is_public(address) for address in addresses):
         raise UnsafeUrl("host resolves to a non-public address")
+    return addresses

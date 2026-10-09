@@ -108,7 +108,7 @@ def enc_key(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 def public(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(wo, "check_url", lambda url, *, allow_private: None)
+    monkeypatch.setattr(wo, "check_url", lambda url, *, allow_private, resolver=None: [])
 
 
 @respx.mock
@@ -179,7 +179,7 @@ async def test_network_error_is_a_failed_attempt(monkeypatch: pytest.MonkeyPatch
 async def test_unsafe_url_is_refused_without_request(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.integrations.ssrf import UnsafeUrl
 
-    def refuse(url: str, *, allow_private: bool) -> None:
+    def refuse(url: str, *, allow_private: bool, resolver: object = None) -> list[str]:
         raise UnsafeUrl("private")
 
     monkeypatch.setattr(wo, "check_url", refuse)
