@@ -105,7 +105,9 @@ async def test_niche_decision_writes_no_item_rows(
 
     assert response.status_code == 200, response.text
     assert response.json()["decision"]["recommended"] == "A"
-    assert response.json()["decision"]["autonomy"] == "ask"
+    decision = response.json()["decision"]
+    assert decision["autonomy"] == "suggest"
+    assert "one-shot: no scam screening" in decision["warnings"]
     assert set((await row_counts(committed_db)).values()) == {0}
 
 
