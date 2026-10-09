@@ -1,10 +1,10 @@
 """insert + enqueue -> worker -> item normalised, job done; failures retried (NFR-02, NFR-08)."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -19,7 +19,9 @@ from app.models import Item, Job, Tenant
 from app.models.enums import ItemStatus, JobKind
 from app.models.status import transition
 from app.workers import queue
+from app.workers.handlers import Handler
 from app.workers.run import Worker
+from tests.integration.graph_support import real_niches, runtime  # noqa: F401  (fixtures)
 
 pytestmark = pytest.mark.integration
 
@@ -69,14 +71,19 @@ async def seeded(factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[tup
         await session.commit()
 
 
-def _worker(factory: async_sessionmaker[AsyncSession], **kwargs: object) -> Worker:
+def _worker(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    manage_graph: bool = False,
+    handlers: Mapping[JobKind, Handler] | None = None,
+) -> Worker:
     return Worker(
         "test-worker",
         Settings(worker_batch_size=50),
         session_factory=factory,
-        manage_graph=False,
-        **kwargs,
-    )  # type: ignore[arg-type]
+        manage_graph=manage_graph,
+        handlers=handlers,
+    )
 
 
 async def _reload(
@@ -135,3 +142,86 @@ async def test_final_failure_marks_job_and_item_failed(
     fresh_item, fresh_job = await _reload(factory, item, job)
     assert fresh_job.status == "failed"
     assert fresh_item.status == "failed"
+
+
+async def _checkpoint_count(factory: async_sessionmaker[AsyncSession], thread_id: str) -> int:
+    async with factory() as session:
+        result = await session.execute(
+            text("SELECT count(*) FROM checkpoints WHERE thread_id = :t"), {"t": thread_id}
+        )
+        return int(result.scalar_one())
+
+
+async def _put_checkpoint(thread_id: str) -> None:
+    from langgraph.checkpoint.base import empty_checkpoint
+
+    from app.graph import run
+
+    graph_runtime = await run._get_runtime()
+    config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
+    await graph_runtime.saver.aput(config, empty_checkpoint(), {"source": "input", "step": 0}, {})
+
+
+async def _fail_terminally(
+    factory: async_sessionmaker[AsyncSession], job: Job, boom: Handler
+) -> None:
+    async with factory() as session:
+        row = await session.get(Job, job.id)
+        assert row is not None
+        row.attempts, row.max_attempts = 4, 5
+        await session.commit()
+    await _worker(factory, handlers={JobKind.PROCESS: boom}, manage_graph=True).run_once()
+
+
+@pytest.mark.usefixtures("runtime")
+async def test_terminal_failure_deletes_checkpoint_thread(  # NFR-03, NFR-07
+    committed_db: async_sessionmaker[AsyncSession],
+) -> None:
+    async with committed_db() as session:
+        tenant = Tenant(name="Thread Leak")
+        session.add(tenant)
+        await session.flush()
+        item = Item(
+            id=new_id(), tenant_id=tenant.id, source="manual", source_ref="leak", raw={"t": "x"}
+        )
+        session.add(item)
+        await session.flush()
+        job_id = await queue.enqueue(
+            session, tenant_id=tenant.id, kind=JobKind.PROCESS, item_id=item.id
+        )
+        await session.commit()
+        job = await session.get(Job, job_id)
+    assert job is not None
+    thread_id = str(item.id)
+    await _put_checkpoint(thread_id)
+    assert await _checkpoint_count(committed_db, thread_id) == 1
+
+    async def boom(session: AsyncSession, claimed: Job) -> None:
+        raise RuntimeError
+
+    await _fail_terminally(committed_db, job, boom)
+
+    fresh_item, fresh_job = await _reload(committed_db, item, job)
+    assert (fresh_item.status, fresh_job.status) == ("failed", "failed")
+    assert await _checkpoint_count(committed_db, thread_id) == 0
+
+
+async def test_thread_delete_error_does_not_mask_failure(
+    factory: async_sessionmaker[AsyncSession],
+    seeded: tuple[Item, Job],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.graph import run
+
+    async def broken_runtime() -> None:
+        raise ConnectionError("checkpointer down")
+
+    monkeypatch.setattr(run, "_get_runtime", broken_runtime)
+    item, job = seeded
+
+    async def boom(session: AsyncSession, claimed: Job) -> None:
+        raise RuntimeError
+
+    await _fail_terminally(factory, job, boom)
+    fresh_item, fresh_job = await _reload(factory, item, job)
+    assert (fresh_item.status, fresh_job.status) == ("failed", "failed")

@@ -1,8 +1,10 @@
 """Pipeline stages run by the worker: normalise, triage (batched), then the graph (FR-20, NFR-03).
 
-``prepare_batch`` is the C9 hook: it normalises every claimed ``new`` item and triages all
-``normalised`` ones with ONE ``triage_items`` call, then commits. It never raises, because each
-per-job ``process_item`` is idempotent by ``items.status`` and finishes the work alone.
+``prepare_batch`` is the C9 hook: it normalises every claimed ``new`` item (one short transaction
+each) and triages the ``normalised`` ones in sub-batches of ``PREPARE_SUB_BATCH``, one
+``triage_items`` call (one Laya call) per sub-batch. No row locks are held across LLM calls.
+It never raises, because each per-job ``process_item`` is idempotent by ``items.status``
+and finishes the work alone.
 """
 
 import uuid
@@ -23,23 +25,56 @@ log = get_logger("app.workers.pipeline")
 # The graph (and LangGraph with it) is imported at call time: see _run_graph.
 RUNNABLE = frozenset({ItemStatus.TRIAGED.value, ItemStatus.DECIDING.value})
 _PREPARABLE = (ItemStatus.NEW.value, ItemStatus.NORMALISED.value)
+# One Laya call per sub-batch: bounds how long a triage transaction can stay open (NFR-03).
+PREPARE_SUB_BATCH = 8
 
 
 class UnsupportedJob(RuntimeError):
     pass
 
 
-async def _normalise_new(session: AsyncSession, items: Sequence[Item]) -> None:
-    """Normalise each `new` item in its own savepoint; one bad item must not block the batch."""
-    for item in items:
-        if item.status != ItemStatus.NEW.value:
-            continue
-        try:
-            async with session.begin_nested():
-                await normalise_item(session, item)
-        except Exception as exc:
-            log.warning("normalise failed, left for the job handler", extra={"item_id": item.id})
-            log.debug("normalise error %s", type(exc).__name__)
+async def _load_detached(
+    factory: async_sessionmaker[AsyncSession], item_ids: Sequence[uuid.UUID]
+) -> list[Item]:
+    """Read the preparable items WITHOUT row locks and detach them.
+
+    The claimed jobs already give this worker exclusivity, so no ``FOR UPDATE`` is needed, and
+    the connection goes back to the pool before any LLM call.
+    """
+    async with factory() as session:
+        items = list(
+            await session.scalars(
+                select(Item)
+                .where(Item.id.in_(item_ids), Item.status.in_(_PREPARABLE))
+                .order_by(Item.created_at)
+            )
+        )
+        session.expunge_all()
+    return items
+
+
+async def _normalise_one(factory: async_sessionmaker[AsyncSession], item: Item) -> None:
+    """Normalise one detached item in its own short transaction; one bad item blocks no other."""
+    try:
+        async with factory() as session:
+            session.add(item)
+            await normalise_item(session, item)
+            await session.commit()
+            session.expunge(item)
+    except Exception as exc:
+        log.warning("normalise failed, left for the job handler", extra={"item_id": item.id})
+        log.debug("normalise error %s", type(exc).__name__)
+
+
+async def _triage_sub_batch(
+    factory: async_sessionmaker[AsyncSession], items: Sequence[Item]
+) -> None:
+    async with factory() as session:
+        for item in items:
+            session.add(item)
+        await triage_service.triage_items(session, items)
+        await session.commit()
+        session.expunge_all()
 
 
 async def _prepare(factory: async_sessionmaker[AsyncSession], jobs: Sequence[Job]) -> None:
@@ -48,20 +83,13 @@ async def _prepare(factory: async_sessionmaker[AsyncSession], jobs: Sequence[Job
     ]
     if not item_ids:
         return
-    async with factory() as session:
-        items = list(
-            await session.scalars(
-                select(Item)
-                .where(Item.id.in_(item_ids), Item.status.in_(_PREPARABLE))
-                .order_by(Item.created_at)
-                .with_for_update(skip_locked=True)
-            )
-        )
-        await _normalise_new(session, items)
-        ready = [item for item in items if item.status == ItemStatus.NORMALISED.value]
-        if ready:
-            await triage_service.triage_items(session, ready)
-        await session.commit()
+    items = await _load_detached(factory, item_ids)
+    for item in items:
+        if item.status == ItemStatus.NEW.value:
+            await _normalise_one(factory, item)
+    ready = [item for item in items if item.status == ItemStatus.NORMALISED.value]
+    for start in range(0, len(ready), PREPARE_SUB_BATCH):
+        await _triage_sub_batch(factory, ready[start : start + PREPARE_SUB_BATCH])
 
 
 async def prepare_batch(factory: async_sessionmaker[AsyncSession], jobs: Sequence[Job]) -> None:
@@ -86,6 +114,8 @@ async def process_item(session: AsyncSession, job: Job) -> None:
     if item.status == ItemStatus.NORMALISED.value:
         await triage_service.triage_items(session, [item])
     status = item.status
+    # Commit the status change now. The worker completes the job in a SEPARATE transaction
+    # afterwards; a crash in between re-runs the job, which is safe because run_item is idempotent.
     await session.commit()  # run_item reads the item on its own connection
     if status in RUNNABLE:
         await run_graph(item.id)

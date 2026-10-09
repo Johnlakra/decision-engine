@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -18,6 +18,7 @@ from app.core.config import Settings
 from app.core.ids import new_id
 from app.models import Item, Job, Tenant
 from app.models.enums import JobKind
+from app.normalise.service import normalise_item
 from app.triage import service as triage_service
 from app.workers import handlers, pipeline, queue
 from app.workers.run import Worker
@@ -147,8 +148,9 @@ async def test_prepare_batch_swallows_triage_errors(
     monkeypatch.setattr(triage_service, "triage_items", boom)
     pairs = await _seed(factory, tenant_id, 2)
     jobs = await _jobs(factory, [job_id for _, job_id in pairs])
+    # normalise was committed on its own; triage failed and left the items for the job handlers
     await pipeline.prepare_batch(factory, jobs)  # must not raise
-    assert {await _status(factory, item_id) for item_id, _ in pairs} == {"new"}
+    assert {await _status(factory, item_id) for item_id, _ in pairs} == {"normalised"}
 
 
 async def test_process_job_for_awaiting_approval_is_a_noop(
@@ -279,3 +281,64 @@ async def test_run_forever_opens_and_closes_graph_runtime(
     worker.stop()
     await worker.run_forever()
     assert events == ["open", "close"]
+
+
+async def _assert_rows_unlocked(factory: Factory, item_ids: Sequence[uuid.UUID]) -> None:
+    """Fail if any other transaction holds a row lock on these items (NOWAIT raises)."""
+    async with factory() as probe:
+        for item_id in item_ids:
+            await probe.execute(
+                text("SELECT id FROM items WHERE id = :i FOR UPDATE NOWAIT"), {"i": item_id}
+            )
+        await probe.rollback()
+
+
+async def test_no_row_locks_held_during_normalise_or_triage(  # NFR-03, NFR-07
+    factory: Factory, tenant_id: uuid.UUID, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pairs = await _seed(factory, tenant_id, 3)
+    item_ids = [item_id for item_id, _ in pairs]
+    jobs = await _jobs(factory, [job_id for _, job_id in pairs])
+    real_normalise = normalise_item
+    real_triage = triage_service.triage_items
+    probes: list[str] = []
+
+    async def probing_normalise(session: AsyncSession, item: Item) -> None:
+        await _assert_rows_unlocked(factory, item_ids)
+        probes.append("normalise")
+        await real_normalise(session, item)
+
+    async def probing_triage(session: AsyncSession, items: Sequence[Item], **kw: Any) -> Any:
+        await _assert_rows_unlocked(factory, item_ids)
+        probes.append("triage")
+        return await real_triage(session, items, **kw)
+
+    monkeypatch.setattr("app.workers.pipeline.normalise_item", probing_normalise)
+    monkeypatch.setattr(triage_service, "triage_items", probing_triage)
+    monkeypatch.setattr(triage_service, "get_laya_client", lambda: FakeLayaClient())
+
+    await pipeline.prepare_batch(factory, jobs)
+
+    assert probes.count("normalise") == 3
+    assert "triage" in probes
+    assert {await _status(factory, i) for i in item_ids}.isdisjoint({"new"})
+
+
+async def test_large_batch_is_triaged_in_bounded_sub_batches(  # NFR-03
+    factory: Factory,
+    tenant_id: uuid.UUID,
+    fake_llm: FakeLLM,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    laya = FakeLayaClient()
+    monkeypatch.setattr(triage_service, "get_laya_client", lambda: laya)
+    count = pipeline.PREPARE_SUB_BATCH + 2
+    pairs = await _seed(factory, tenant_id, count)
+    jobs = await _jobs(factory, [job_id for _, job_id in pairs])
+
+    await pipeline.prepare_batch(factory, jobs)
+
+    sizes = sorted(len(call["states"]) for call in laya.calls if len(call["states"]) > 1)
+    assert sizes == [2, pipeline.PREPARE_SUB_BATCH]
+    for item_id, _ in pairs:
+        assert await _status(factory, item_id) != "new"

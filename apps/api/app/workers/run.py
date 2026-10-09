@@ -118,13 +118,32 @@ class Worker:
         return {"item_id": job.item_id} if job.item_id else {}
 
     async def _record_failure(self, job: Job, error: str) -> None:
+        failed_item_id: uuid.UUID | None = None
         async with self._factory() as session:
             status = await queue.fail(session, job, error)
             if status is JobStatus.FAILED and job.item_id:
                 item = await session.get(Item, job.item_id, with_for_update=True)
                 if item and can_transition(item.status, ItemStatus.FAILED):
                     transition(item, ItemStatus.FAILED)
+                    failed_item_id = item.id
             await session.commit()
+        if failed_item_id is not None and self._manage_graph:
+            await self._delete_thread(failed_item_id)
+
+    @staticmethod
+    async def _delete_thread(item_id: uuid.UUID) -> None:
+        """Drop the LangGraph checkpoint of a failed item (ADR 0003: only END deletes otherwise).
+
+        Best effort: an error is logged and never masks the original failure.
+        """
+        try:
+            from app.graph import run as graph_run
+
+            # TODO(langgraph-builder): no public delete helper yet; use the runtime saver.
+            runtime = await graph_run._get_runtime()
+            await runtime.saver.adelete_thread(str(item_id))
+        except Exception:
+            log.exception("checkpoint thread delete failed", extra={"item_id": item_id})
 
     async def _maybe_reclaim(self) -> None:
         if time.monotonic() - self._last_reclaim < RECLAIM_EVERY_S:
