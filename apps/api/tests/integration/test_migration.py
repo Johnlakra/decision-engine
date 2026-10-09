@@ -34,7 +34,8 @@ async def _tables(url: str) -> set[str]:
         url,
         "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename<>'alembic_version'",  # noqa: E501,
     )
-    return set(rows)
+    # LangGraph checkpoint* tables are created outside Alembic (ADR 0003).
+    return {name for name in rows if not name.startswith("checkpoint")}
 
 
 async def test_upgrade_downgrade_upgrade(migrated_db: str) -> None:

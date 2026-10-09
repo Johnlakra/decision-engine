@@ -21,6 +21,7 @@ from tests.committed_fixtures import (  # noqa: F401  (fixtures re-exported for 
     committed_db,
     tenant_committed,
 )
+from tests.fakes.fake_llm import fake_llm  # noqa: F401  (fixture re-exported)
 
 DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://de:de@localhost:5432/de_test"
 
