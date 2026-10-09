@@ -1,0 +1,70 @@
+"""Human verdict on a waiting item: ``POST /v1/items/{id}/decision`` (FR-33, FR-34, FR-54).
+
+Resumes the item's LangGraph thread; ``approve`` and ``edit`` run the allowed actions inline.
+"""
+
+import uuid
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.api.deps import require_scope
+from app.core.errors import ProblemError
+from app.graph import run
+from app.graph.errors import InvalidDecision, ItemBusy, ItemNotFound, NotAwaitingApproval
+from app.models.enums import Verdict
+from app.schemas.decision import DecisionIn
+from app.security.api_keys import Principal
+
+router = APIRouter(prefix="/items", tags=["items"])
+
+PROBLEM_BASE = "https://decision-engine/problems/"
+Writer = Annotated[Principal, Depends(require_scope("items:write"))]
+
+
+class DecisionResult(BaseModel):
+    status: Literal["done", "rejected", "snoozed", "acting"]
+
+
+def _status_for(verdict: Verdict, item_status: str) -> str:
+    """Reject and snooze report the verdict; approve and edit report where the item ended."""
+    if verdict == Verdict.REJECT:
+        return "rejected"
+    if verdict == Verdict.SNOOZE:
+        return "snoozed"
+    return item_status
+
+
+@router.post(
+    "/{item_id}/decision",
+    response_model=DecisionResult,
+    summary="Approve, reject, edit or snooze a waiting decision",
+    operation_id="decide_item",
+    responses={
+        404: {"description": "No such item for this tenant"},
+        409: {"description": "Not awaiting approval, or another request holds the item"},
+        422: {"description": "Option is not one of the decision's options, or bad snooze time"},
+    },
+)
+async def submit_decision(
+    item_id: uuid.UUID, body: DecisionIn, principal: Writer
+) -> DecisionResult:
+    try:
+        outcome = await run.resume_item(item_id, principal.tenant_id, body)
+    except ItemNotFound as exc:
+        raise ProblemError(404, "Not Found", "Item not found") from exc
+    except NotAwaitingApproval as exc:
+        raise ProblemError(
+            409, "Not awaiting approval", str(exc), type=PROBLEM_BASE + "not-awaiting-approval"
+        ) from exc
+    except ItemBusy as exc:
+        raise ProblemError(
+            409,
+            "Item busy",
+            "Another request is processing this item",
+            type=PROBLEM_BASE + "item-busy",
+        ) from exc
+    except InvalidDecision as exc:
+        raise ProblemError(422, "Validation failed", str(exc)) from exc
+    return DecisionResult.model_validate({"status": _status_for(body.verdict, outcome.status)})

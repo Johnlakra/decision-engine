@@ -81,11 +81,15 @@ def user_prompt(state: GraphState, fenced: str, corrections: list[store.Correcti
     )
 
 
-async def decide(state: GraphState) -> dict[str, Any]:
-    niche = niche_for(state.get("niche"))
-    item_id = state["item_id"]
-    view = await store.load_item_view(item_id)
-    corrections = await store.load_corrections(view.tenant_id, niche.name, niche.few_shot)
+async def make_decision(
+    state: GraphState,
+    niche: NicheConfig,
+    view: store.ItemView,
+    corrections: list[store.Correction],
+    *,
+    item_id: str | None,
+) -> dict[str, Any]:
+    """The LLM call and action filtering, without persistence (shared with ``/v1/decide``)."""
     allowed = allowed_actions(niche)
     messages = [
         {"role": "system", "content": system_prompt(niche, allowed)},
@@ -103,4 +107,12 @@ async def decide(state: GraphState) -> dict[str, Any]:
         item_id=item_id,
         max_tokens=niche.llm.max_tokens,
     )
-    return {"decision": filter_actions(out, allowed, item_id).model_dump(mode="json")}
+    return filter_actions(out, allowed, item_id or "-").model_dump(mode="json")
+
+
+async def decide(state: GraphState) -> dict[str, Any]:
+    niche = niche_for(state.get("niche"))
+    item_id = state["item_id"]
+    view = await store.load_item_view(item_id)
+    corrections = await store.load_corrections(view.tenant_id, niche.name, niche.few_shot)
+    return {"decision": await make_decision(state, niche, view, corrections, item_id=item_id)}

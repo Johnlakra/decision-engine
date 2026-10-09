@@ -66,20 +66,29 @@ def _messages(niche: NicheConfig, user_text: str) -> list[dict[str, Any]]:
     ]
 
 
-async def extract(state: GraphState) -> dict[str, Any]:
-    niche = niche_for(state.get("niche"))
+async def extract_entities(
+    niche: NicheConfig, view: store.ItemView, *, item_id: str | None
+) -> dict[str, Any]:
+    """The LLM call and validation, without any persistence (shared with ``/v1/decide``)."""
     if not niche.extract:
-        return {"extracted": {}}
-    view = await store.load_item_view(state["item_id"])
+        return {}
     out = await gateway.complete_json(
         EXTRACT_PURPOSE,
         ExtractOut,
         _messages(niche, fenced_content(view.content, view.source)),
         sensitivity=effective_sensitivity(view.sensitivity, niche),
         language=view.language,
-        item_id=state["item_id"],
+        item_id=item_id,
         max_tokens=EXTRACT_MAX_TOKENS,
     )
-    entities = clean_entities(out.entities, niche.extract)
+    return clean_entities(out.entities, niche.extract)
+
+
+async def extract(state: GraphState) -> dict[str, Any]:
+    niche = niche_for(state.get("niche"))
+    if not niche.extract:
+        return {"extracted": {}}
+    view = await store.load_item_view(state["item_id"])
+    entities = await extract_entities(niche, view, item_id=state["item_id"])
     await store.save_entities(state["item_id"], entities)
     return {"extracted": entities}

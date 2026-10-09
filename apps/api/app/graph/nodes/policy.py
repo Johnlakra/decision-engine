@@ -50,10 +50,9 @@ def choose_autonomy(
     return niche.autonomy
 
 
-async def policy(state: GraphState) -> dict[str, Any]:
-    niche = niche_for(state.get("niche"))
+def apply_policy(state: GraphState, niche: NicheConfig, view: store.ItemView) -> dict[str, Any]:
+    """Autonomy, expert review and scam warning for the decision in ``state`` (no persistence)."""
     out = DecisionOut.model_validate(state["decision"])
-    view = await store.load_item_view(state["item_id"])
     scam = is_scam(view.risk, view.triage)
     haystack = json.dumps(
         [view.content.get("title"), state.get("extracted"), out.rationale], default=str
@@ -67,6 +66,12 @@ async def policy(state: GraphState) -> dict[str, Any]:
         warnings=warnings,
         niche_version=state.get("niche_version", niche.version),
     )
-    dumped = stored.model_dump(mode="json")
+    return stored.model_dump(mode="json")
+
+
+async def policy(state: GraphState) -> dict[str, Any]:
+    niche = niche_for(state.get("niche"))
+    view = await store.load_item_view(state["item_id"])
+    dumped = apply_policy(state, niche, view)
     await store.save_decision(state["item_id"], dumped)
     return {"decision": dumped}

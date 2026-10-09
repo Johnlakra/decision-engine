@@ -67,8 +67,9 @@ async def mark_ready(item_id: str, *, announce: bool) -> dict[str, Any]:
         return decision
 
 
-def _resolve_option(item: Item, body: DecisionIn) -> str | None:
-    decision = item.decision or {}
+def resolve_option(decision: dict[str, Any] | None, body: DecisionIn) -> str | None:
+    """The option a verdict applies to (approve and edit default to the recommended one)."""
+    decision = decision or {}
     ids = [o["id"] for o in decision.get("options", [])]
     if body.verdict in (Verdict.APPROVE, Verdict.EDIT):
         option = body.option or decision.get("recommended")
@@ -105,7 +106,7 @@ async def record_verdict(
         item = await _locked(session, item_id)
         if item.status != ItemStatus.AWAITING_APPROVAL:
             return await _replayed(session, item)
-        option = _resolve_option(item, body)
+        option = resolve_option(item.decision, body)
         target = _TARGET[body.verdict]
         if decided_by == DecidedBy.AUTO and target == ItemStatus.APPROVED:
             target = ItemStatus.AUTO_APPROVED
