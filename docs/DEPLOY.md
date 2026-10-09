@@ -42,3 +42,10 @@ service, build images), `.github/workflows/deploy.yml` (SSH deploy to VM on tag)
 ## Pre-deploy gate (`/deploy-check`)
 security-auditor sign-off · `make test` green · migrations applied on a copy · `/health/deep` green on staging ·
 secrets present (not printed) · budgets set · `LAYA_API_KEY` set · CORS allow-list · backups tested by a restore.
+
+## Local vs production exposure
+- Local `docker-compose.yml` publishes Postgres on `127.0.0.1:5432` only (loopback, dev tooling). Redis is not published.
+- The future `prod` profile must take `POSTGRES_PASSWORD` from the environment (no `de:de` default), must not publish the db
+  or redis ports at all (internal network only), and only Caddy exposes 80/443. Not built yet; this is a requirement note.
+- The API image copies only `data/free_tiers.yaml` and `data/stacks.yaml` (explicit in the Dockerfile and `.dockerignore`),
+  so a private file added to `data/` can never be baked into an image.

@@ -17,6 +17,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # (litellm.proxy cannot be removed: litellm imports it at load time.)
 RUN find /opt/venv -depth \( -name __pycache__ -o -name tests \) -exec rm -r {} + \
  && find /opt/venv -name '*.pyi' -delete
+# Unused transitive deps (pulled by litellm; no S3 / HF tokenizer paths are used here).
+RUN cd /opt/venv/lib/python3.12/site-packages \
+ && rm -rf boto3* botocore* s3transfer* hf_xet* huggingface_hub*
 
 FROM python:3.12-slim AS runtime
 ENV PATH=/opt/venv/bin:$PATH PYTHONPATH=/srv/apps/api \
@@ -25,11 +28,10 @@ RUN groupadd --system --gid 10001 app \
  && useradd --system --uid 10001 --gid app --home-dir /srv --shell /usr/sbin/nologin app
 COPY --from=builder /opt/venv /opt/venv
 WORKDIR /srv/apps/api
-COPY apps/api/ ./
-COPY niches/ /srv/niches/
-COPY schemas/ /srv/schemas/
-COPY data/*.yaml /srv/data/
-RUN chmod +x docker-entrypoint.sh && chown -R app:app /srv
+COPY --chown=app:app --chmod=755 apps/api/ ./
+COPY --chown=app:app niches/ /srv/niches/
+COPY --chown=app:app schemas/ /srv/schemas/
+COPY --chown=app:app data/free_tiers.yaml data/stacks.yaml /srv/data/
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \

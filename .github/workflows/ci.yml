@@ -52,6 +52,29 @@ jobs:
       - name: Dependency audit
         run: uv run pip-audit
 
+  sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - run: uv python install 3.12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: packages/client-ts/package-lock.json
+      - run: uv sync --frozen
+        working-directory: apps/api
+      - name: Regenerate SDKs (acceptance check P8)
+        run: make sdk && git diff --exit-code packages/
+      - run: npm --prefix packages/client-ts ci
+      - run: npm --prefix packages/client-ts run lint
+      - run: npm --prefix packages/client-ts test
+
   image:
     runs-on: ubuntu-latest
     timeout-minutes: 20

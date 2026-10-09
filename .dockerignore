@@ -5,7 +5,8 @@
 .env.*
 !.env.example
 data
-!data/*.yaml
+!data/free_tiers.yaml
+!data/stacks.yaml
 docs
 secrets
 **/__pycache__
