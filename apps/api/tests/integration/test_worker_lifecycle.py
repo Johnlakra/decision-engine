@@ -185,7 +185,8 @@ async def test_crashed_worker_job_is_reclaimed_and_finished_by_next_worker(
     async with factory() as session:
         job = await session.get(Job, job_id)
         assert job is not None
-        job.locked_at = utcnow() - timedelta(minutes=10)
+        # Age the lock past the process-job lease, so the crashed worker's claim has expired.
+        job.locked_at = utcnow() - queue.PROCESS_LEASE - timedelta(minutes=1)
         await session.commit()
     worker = _worker(factory, migrated_db, handlers=STUB_HANDLERS)
     await worker._maybe_reclaim()
