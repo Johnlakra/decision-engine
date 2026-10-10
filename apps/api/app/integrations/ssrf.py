@@ -22,10 +22,37 @@ def resolve_host(host: str) -> list[str]:
     return [str(info[4][0]) for info in infos]
 
 
+_DENIED_NETWORKS = tuple(
+    ipaddress.ip_network(cidr)
+    for cidr in (
+        "192.0.0.0/24",  # IETF protocol assignments (is_global has exceptions inside it)
+        "fec0::/10",  # deprecated site-local
+        "64:ff9b:1::/48",  # local-use NAT64
+    )
+)
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_SIXTO4 = ipaddress.ip_network("2002::/16")
+
+
+def _embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
+    """IPv4 wrapped by an IPv4-mapped, NAT64 or 6to4 address, else None."""
+    if ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    if ip in _NAT64:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    if ip in _SIXTO4:
+        return ipaddress.IPv4Address((int(ip) >> 80) & 0xFFFFFFFF)
+    return None
+
+
 def _is_public(address: str) -> bool:
     ip = ipaddress.ip_address(address.split("%", 1)[0])
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
+    if isinstance(ip, ipaddress.IPv6Address):
+        embedded = _embedded_ipv4(ip)
+        if embedded is not None:
+            return _is_public(str(embedded))
+    if any(ip in network for network in _DENIED_NETWORKS if network.version == ip.version):
+        return False
     return ip.is_global and not ip.is_multicast
 
 

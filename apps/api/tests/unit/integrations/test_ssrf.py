@@ -85,3 +85,36 @@ def test_credentials_in_url_refused() -> None:
             allow_private=False,
             resolver=resolver_for("8.8.8.8"),
         )
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "64:ff9b::a9fe:a9fe",  # NAT64 wrapping 169.254.169.254
+        "64:ff9b::7f00:1",  # NAT64 wrapping 127.0.0.1
+        "64:ff9b::a00:1",  # NAT64 wrapping 10.0.0.1
+        "64:ff9b:1::1",  # local-use NAT64
+        "2002:a9fe:a9fe::1",  # 6to4 wrapping 169.254.169.254
+        "2002:7f00:1::1",  # 6to4 wrapping 127.0.0.1
+        "2002:c0a8:101::1",  # 6to4 wrapping 192.168.1.1
+        "fec0::1",  # deprecated site-local
+        "fe80::1:2",  # link-local
+        "192.0.0.1",  # IETF protocol assignments
+        "192.0.0.170",
+    ],
+)
+def test_embedded_and_special_ranges_refused(address: str) -> None:
+    """FR-42, NFR-05: NAT64, 6to4, site-local and 192.0.0.0/24 are never public."""
+    with pytest.raises(UnsafeUrl):
+        check_url("https://hook.example.com/x", allow_private=False, resolver=resolver_for(address))
+
+
+@pytest.mark.parametrize("address", ["64:ff9b::5db8:d822", "2002:5db8:d822::1"])
+def test_embedded_public_ipv4_is_still_allowed(address: str) -> None:
+    """FR-42: NAT64/6to4 wrapping a public IPv4 (93.184.216.34) passes the same rules."""
+    check_url("https://hook.example.com/x", allow_private=False, resolver=resolver_for(address))
+
+
+def test_allow_private_still_skips_the_guard() -> None:
+    """FR-42: allow_private behaviour unchanged."""
+    assert check_url("http://127.0.0.1:9/x", allow_private=True) == []
