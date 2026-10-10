@@ -54,3 +54,42 @@ async def test_one_decision_one_row_and_export(db_session: AsyncSession, tenant:
             db_session, tenant_id=tenant.id, niche="inbox", fmt="laya_train", since=later
         )
     ] == []
+
+
+async def test_snooze_then_approve_exports_one_line_and_auto_is_excluded(
+    db_session: AsyncSession, tenant: Tenant
+) -> None:
+    """H3 / FR-54, FR-80: duplicates from snooze and AUTO rows stay out of laya_train."""
+
+    def make(ref: str) -> Item:
+        return Item(
+            id=new_id(), tenant_id=tenant.id, source="manual", source_ref=ref, raw={},
+            niche="inbox", content={"title": ref},
+            triage={"questions": Q, "answers": {"k": {"type": "choice", "choice": "A"}}},
+        )  # fmt: skip
+
+    human, auto = make("h"), make("a")
+    db_session.add_all([human, auto])
+    await db_session.flush()
+    for verdict in (Verdict.SNOOZE, Verdict.APPROVE):
+        await record_decision_feedback(
+            db_session, item=human, body=DecisionIn(
+                verdict=verdict,
+                option="A",
+                snooze_until=(
+                    datetime.now(UTC) + timedelta(hours=1) if verdict == Verdict.SNOOZE else None
+                ),
+            ),
+            decided_by=DecidedBy.HUMAN, latency_ms=1,
+        )  # fmt: skip
+    await record_decision_feedback(
+        db_session, item=auto, body=DecisionIn(verdict=Verdict.APPROVE, option="A"),
+        decided_by=DecidedBy.AUTO, latency_ms=1,
+    )  # fmt: skip
+    lines = [
+        line
+        async for line in iter_export(
+            db_session, tenant_id=tenant.id, niche="inbox", fmt="laya_train", since=None
+        )
+    ]
+    assert len(lines) == 1 and "Subject: h" in lines[0]

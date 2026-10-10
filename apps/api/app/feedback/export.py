@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Feedback
+from app.models.enums import LabelSource, Verdict
 
 ExportFormat = Literal["laya_train", "laya_eval"]
 YIELD_PER = 200
@@ -20,8 +21,13 @@ def _expected(answers: Mapping[str, Mapping[str, float]]) -> dict[str, str]:
 
 
 def format_line(feedback: Feedback, fmt: ExportFormat) -> str | None:
-    """One JSONL line, or None when the row has no usable labels. Never includes `raw`."""
-    answers = ((feedback.gold or {}).get("answers")) or {}
+    """One JSONL line; None when not human gold or unlabelled. Never includes `raw`."""
+    gold = feedback.gold or {}
+    if feedback.label_source != LabelSource.HUMAN.value:
+        return None  # LLM/auto rows would teach Laya its own answers (LAYA.md section 5)
+    if (gold.get("decision") or {}).get("verdict") == Verdict.SNOOZE.value:
+        return None  # a snooze defers; the final decision row carries the label
+    answers = gold.get("answers") or {}
     questions = feedback.questions or {}
     if not answers or not questions:
         return None

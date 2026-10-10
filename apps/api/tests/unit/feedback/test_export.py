@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.feedback import service
@@ -83,7 +84,8 @@ def feedback() -> Feedback:
     return Feedback(
         state_text="Subject: T",
         questions=QUESTIONS,
-        gold={"answers": {"needs_decision": {"A": 1.0}}, "decision": {}},
+        gold={"answers": {"needs_decision": {"A": 1.0}}, "decision": {"verdict": "approve"}},
+        label_source="human",
     )
 
 
@@ -111,3 +113,42 @@ def test_laya_eval_line_has_expected_keys() -> None:
 def test_rows_without_labels_are_skipped() -> None:
     empty = Feedback(state_text="s", questions=QUESTIONS, gold={"answers": {}})
     assert format_line(empty, "laya_train") is None
+
+
+def test_llm_labelled_rows_are_not_exported() -> None:
+    """H3 / FR-80: laya_train and laya_eval carry human gold only (LAYA.md section 5)."""
+    fb = feedback()
+    fb.label_source = "llm"
+    assert format_line(fb, "laya_train") is None
+    assert format_line(fb, "laya_eval") is None
+
+
+def test_snooze_rows_are_not_exported() -> None:
+    fb = feedback()
+    fb.gold = {"answers": {"needs_decision": {"A": 1.0}}, "decision": {"verdict": "snooze"}}
+    assert format_line(fb, "laya_train") is None
+
+
+async def test_reject_does_not_write_triage_answer_as_needs_decision_gold() -> None:
+    fb = await service.record_decision_feedback(
+        FakeSession(),  # type: ignore[arg-type]
+        item=make_item(),
+        body=DecisionIn(verdict=Verdict.REJECT),
+        decided_by=DecidedBy.HUMAN,
+        latency_ms=None,
+    )
+    assert "needs_decision" not in fb.gold["answers"]
+    assert fb.gold["answers"] == {"urgency": {"2": 1.0}}
+
+
+async def test_snooze_rows_never_carry_answer_gold() -> None:
+    fb = await service.record_decision_feedback(
+        FakeSession(),  # type: ignore[arg-type]
+        item=make_item(),
+        body=DecisionIn(
+            verdict=Verdict.SNOOZE, snooze_until=datetime.now(UTC) + timedelta(hours=1)
+        ),
+        decided_by=DecidedBy.HUMAN,
+        latency_ms=None,
+    )
+    assert fb.gold["answers"] == {}

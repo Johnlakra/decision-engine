@@ -23,11 +23,29 @@ def _answer_gold(answer: Mapping[str, Any]) -> dict[str, float] | None:
     return None
 
 
+# Questions whose triage answer a verdict says nothing true about (docs/LAYA.md section 5).
+# A snooze defers the decision, so no answer is confirmed; a reject says the proposed action was
+# wrong, so "needs a decision" is not confirmed by it. Unknown beats invented.
+_UNCONFIRMED: dict[Verdict, frozenset[str] | None] = {
+    Verdict.REJECT: frozenset({"needs_decision"}),
+    Verdict.SNOOZE: None,
+}
+
+
+def _confirmed(verdict: Verdict, qid: str) -> bool:
+    if verdict not in _UNCONFIRMED:
+        return True
+    dropped = _UNCONFIRMED[verdict]
+    return dropped is not None and qid not in dropped
+
+
 def build_gold(
     triage: Mapping[str, Any] | None, body: DecisionIn, latency_ms: int | None
 ) -> dict[str, Any]:
     answers: dict[str, dict[str, float]] = {}
     for qid, answer in ((triage or {}).get("answers") or {}).items():
+        if not _confirmed(body.verdict, str(qid)):
+            continue
         gold = _answer_gold(answer) if isinstance(answer, Mapping) else None
         if gold is not None:
             answers[str(qid)] = gold
