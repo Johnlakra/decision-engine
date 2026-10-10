@@ -36,7 +36,9 @@ def niches(monkeypatch: pytest.MonkeyPatch) -> NicheRegistry:
 def no_db(monkeypatch: pytest.MonkeyPatch) -> None:
     """Any store access other than the corrections read would be a bug here."""
 
-    async def corrections(tenant_id: str, niche: str, limit: int) -> list[Any]:
+    async def corrections(
+        tenant_id: str, niche: str, limit: int, *, sensitivity: str = "public"
+    ) -> list[Any]:
         return []
 
     def boom(*args: Any, **kwargs: Any) -> Any:

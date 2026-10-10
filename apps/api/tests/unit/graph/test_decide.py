@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from app.graph import store
 from app.graph.nodes.decide import decide
 from app.graph.nodes.extract import clean_entities, extract
 from app.graph.nodes.tools import tools
@@ -101,3 +102,46 @@ async def test_tools_run_by_name_and_skip_failures(
     out = await tools({"niche": "tech_stack", "sensitivity": "private", "extracted": {}})
     assert list(out["tool_results"]) == ["stack_catalog.shortlist"]
     assert out["tool_results"]["stack_catalog.shortlist"]["data"] == {"s": "private"}
+
+
+ROWS = (
+    (store.Correction("PRIVSECRET mail from boss", "reject", None, False), "private"),
+    (store.Correction("PUBLIC note about wheat", "approve", "A", False), "public"),
+)
+
+
+@pytest.fixture
+def sensitive_store(fake_store: FakeStore, monkeypatch: pytest.MonkeyPatch) -> FakeStore:
+    """Mimics the SQL filter: public calls never get rows from private items."""
+
+    async def load(
+        tenant_id: str, niche: str, limit: int, *, sensitivity: str = "public"
+    ) -> list[Any]:
+        return [c for c, s in ROWS if sensitivity == "private" or s == "public"]
+
+    monkeypatch.setattr(store, "load_corrections", load)
+    return fake_store
+
+
+async def test_private_correction_never_in_public_decide_prompt(
+    sensitive_store: FakeStore, fake_llm: FakeLLM
+) -> None:
+    """FR-62, NFR-07: private feedback must not reach a public-chain prompt (H1)."""
+    sensitive_store.view = make_view(sensitivity="public")
+    fake_llm.script("decide", DECISION)
+    await decide({"item_id": "i1", "niche": "tech_stack", "tool_results": {}})
+    call = fake_llm.calls_for("decide")[0]
+    assert call.sensitivity == "public"
+    assert "PRIVSECRET" not in call.messages[1]["content"]
+    assert "PUBLIC note" in call.messages[1]["content"]  # public corrections remain
+
+
+async def test_private_call_still_sees_private_corrections(
+    sensitive_store: FakeStore, fake_llm: FakeLLM
+) -> None:
+    """FR-62: a private call may use both private and public corrections."""
+    sensitive_store.view = make_view(sensitivity="private")
+    fake_llm.script("decide", DECISION)
+    await decide({"item_id": "i1", "niche": "tech_stack", "tool_results": {}})
+    user = fake_llm.calls_for("decide")[0].messages[1]["content"]
+    assert "PRIVSECRET" in user and "PUBLIC note" in user

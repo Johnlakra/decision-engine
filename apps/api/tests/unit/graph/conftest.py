@@ -42,7 +42,9 @@ class FakeStore:
     async def save_decision(self, item_id: str, decision: dict[str, Any]) -> None:
         self.decision = decision
 
-    async def load_corrections(self, tenant_id: str, niche: str, limit: int) -> list[Any]:
+    async def load_corrections(
+        self, tenant_id: str, niche: str, limit: int, *, sensitivity: str = "public"
+    ) -> list[Any]:
         return []
 
 

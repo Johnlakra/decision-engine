@@ -147,7 +147,12 @@ async def _niche_decision(
         "extracted": extracted,
     }
     state["tool_results"] = (await tools(state))["tool_results"]
-    corrections = await store.load_corrections(tenant_id, niche.name, niche.few_shot)
+    corrections = await store.load_corrections(
+        tenant_id,
+        niche.name,
+        niche.few_shot,
+        sensitivity=effective_sensitivity(sensitivity, niche),
+    )
     state["decision"] = await make_decision(state, niche, view, corrections, item_id=None)
     decided = apply_policy(state, niche, view)
     warnings = [*decided.get("warnings", []), ONESHOT_WARNING]

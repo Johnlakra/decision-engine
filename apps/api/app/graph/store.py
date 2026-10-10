@@ -93,20 +93,31 @@ async def save_decision(item_id: str, decision: dict[str, Any]) -> None:
             item.decision = decision
 
 
-async def load_corrections(tenant_id: str, niche: str, limit: int) -> list[Correction]:
-    """The last ``limit`` human decisions for this niche, newest first (few-shot, FR-62)."""
+async def load_corrections(
+    tenant_id: str, niche: str, limit: int, *, sensitivity: str = "public"
+) -> list[Correction]:
+    """The last ``limit`` human decisions for this niche, newest first (few-shot, FR-62).
+
+    ``sensitivity`` is the caller's effective sensitivity. Only a ``private`` call may see
+    corrections from private items; anything else (including unknown values) gets rows whose
+    item is ``public``. Filtered in SQL via the item join, so orphans never match (NFR-07).
+    """
     if limit <= 0:
         return []
     stmt = (
         select(Feedback)
+        .join(Item, Item.id == Feedback.item_id)
         .where(
             Feedback.tenant_id == uuid.UUID(tenant_id),
+            Item.tenant_id == uuid.UUID(tenant_id),
             Feedback.niche == niche,
             Feedback.kind == "decision",
         )
         .order_by(Feedback.created_at.desc())
         .limit(limit)
     )
+    if sensitivity != "private":
+        stmt = stmt.where(Item.sensitivity == "public")
     async with session_scope() as session:
         rows = (await session.scalars(stmt)).all()
     corrections: list[Correction] = []

@@ -30,7 +30,9 @@ def registry(monkeypatch: pytest.MonkeyPatch) -> NicheRegistry:
     reg.reload()
     monkeypatch.setattr(reg_mod, "_registry", reg)
 
-    async def corrections(tenant_id: str, niche: str, limit: int) -> list[Any]:
+    async def corrections(
+        tenant_id: str, niche: str, limit: int, *, sensitivity: str = "public"
+    ) -> list[Any]:
         return []
 
     monkeypatch.setattr(store, "load_corrections", corrections)

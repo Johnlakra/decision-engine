@@ -86,7 +86,9 @@ class World:
         if self.item.status == ItemStatus.DECIDING:
             self.decision = decision
 
-    async def load_corrections(self, tenant_id: str, niche: str, limit: int) -> list[Any]:
+    async def load_corrections(
+        self, tenant_id: str, niche: str, limit: int, *, sensitivity: str = "public"
+    ) -> list[Any]:
         return []
 
     # store_approval --------------------------------------------------------------------------

@@ -114,5 +114,10 @@ async def decide(state: GraphState) -> dict[str, Any]:
     niche = niche_for(state.get("niche"))
     item_id = state["item_id"]
     view = await store.load_item_view(item_id)
-    corrections = await store.load_corrections(view.tenant_id, niche.name, niche.few_shot)
+    corrections = await store.load_corrections(
+        view.tenant_id,
+        niche.name,
+        niche.few_shot,
+        sensitivity=effective_sensitivity(view.sensitivity, niche),
+    )
     return {"decision": await make_decision(state, niche, view, corrections, item_id=item_id)}
