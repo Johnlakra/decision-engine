@@ -150,3 +150,27 @@ async def test_gateway_logs_every_attempt_and_budget_uses_the_rows(
         ("groq", True, None, None),
         ("groq", True, None, None),
     ]
+
+
+async def test_postgres_store_incr_first_enforces_limit_under_concurrency(
+    db_session: AsyncSession, tenant: Tenant
+) -> None:
+    """Fallback path: reservations count in-flight calls before llm_usage rows exist (FR-60)."""
+    import asyncio
+
+    config = make_config(gemini_api_key="g")
+    await usage.record_usage(
+        factory_for(db_session),
+        provider=config.providers["gemini"],
+        purpose="x",
+        item_id=None,
+        prompt_tokens=1,
+        completion_tokens=1,
+        latency_ms=1,
+        ok=True,
+        error_code=None,
+    )
+    store = PostgresBudgetStore(factory_for(db_session))
+    values = await asyncio.gather(store.incr("gemini"), store.incr("gemini"))
+    assert sorted(values) == [2, 3]  # one row already written; each racer gets its own slot
+    assert await store.count("gemini") == 3

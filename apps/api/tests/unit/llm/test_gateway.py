@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.llm import gateway
 from app.llm.budgets import seconds_until_utc_midnight
+from app.llm.config import load_config
 from app.llm.errors import LLMUnavailable, NoPrivateProvider, ProviderError
 from tests.unit.llm.conftest import LLMEnv
 
@@ -298,3 +299,17 @@ def test_smoke_ok_and_fail_never_print_keys(
     llm_env.provider_calls.script("gemini", ProviderError("auth"))
     assert smoke.main(["--provider", "gemini"]) == 1
     assert "sk-very-secret" not in capsys.readouterr().out
+
+
+async def test_concurrent_calls_at_limit_minus_one_allow_exactly_one(env: LLMEnv) -> None:
+    """Increment-first: the budget cannot be overshot by racing callers (FR-60)."""
+    import asyncio
+
+    provider = load_config().providers["gemini"]
+    assert provider.rpd is not None
+    for _ in range(provider.rpd - 1):
+        await env.store.incr("gemini")
+    reasons = await asyncio.gather(
+        gateway._skip_reason(provider, env.store), gateway._skip_reason(provider, env.store)
+    )
+    assert sorted(r or "" for r in reasons) == ["", "over_budget"]

@@ -4,6 +4,7 @@ Redis when REDIS_URL is set (INCR + EXPIRE 2 d), otherwise count today's llm_usa
 Cool-downs live in Redis when available, otherwise in process memory.
 """
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
@@ -88,11 +89,13 @@ class RedisBudgetStore:
         return int(raw) if raw else 0
 
     async def incr(self, provider: str) -> int:
+        """INCR + EXPIRE NX in one MULTI/EXEC: a key never exists without a TTL (Redis 7+)."""
         key = budget_key(provider, self._clock())
-        value = int(await self._redis.incr(key))
-        if value == 1:
-            await self._redis.expire(key, BUDGET_TTL_SECONDS)
-        return value
+        pipe = self._redis.pipeline(transaction=True)
+        pipe.incr(key)
+        pipe.expire(key, BUDGET_TTL_SECONDS, nx=True)
+        results = await pipe.execute()
+        return int(results[0])
 
     async def cool_down(self, provider: str, seconds: int) -> None:
         await self._redis.set(cooldown_key(provider), "1", ex=max(1, seconds))
@@ -102,14 +105,20 @@ class RedisBudgetStore:
 
 
 class PostgresBudgetStore:
-    """Counts today's llm_usage rows (every attempt writes one), so incr is a read."""
+    """Counts today's llm_usage rows (every attempt writes one).
+
+    incr reserves a slot in-process first (max of rows and reservations, plus one), so calls
+    in flight (row not written yet) still count; the rows reseed it after a restart.
+    """
 
     def __init__(self, session_factory: SessionFactory, clock: Clock = utcnow) -> None:
         self._session_factory = session_factory
         self._clock = clock
         self._cooldowns = MemoryCooldowns(clock)
+        self._reserved: dict[str, int] = {}
+        self._lock = asyncio.Lock()
 
-    async def count(self, provider: str) -> int:
+    async def _rows_today(self, provider: str) -> int:
         now = self._clock().astimezone(UTC)
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         stmt = (
@@ -120,8 +129,17 @@ class PostgresBudgetStore:
         async with self._session_factory() as session:
             return int((await session.execute(stmt)).scalar_one())
 
+    async def count(self, provider: str) -> int:
+        key = budget_key(provider, self._clock())
+        return max(await self._rows_today(provider), self._reserved.get(key, 0))
+
     async def incr(self, provider: str) -> int:
-        return await self.count(provider)
+        key = budget_key(provider, self._clock())
+        async with self._lock:
+            value = max(await self._rows_today(provider), self._reserved.get(key, 0)) + 1
+            self._reserved = {k: v for k, v in self._reserved.items() if k.endswith(key[-8:])}
+            self._reserved[key] = value
+            return value
 
     async def cool_down(self, provider: str, seconds: int) -> None:
         self._cooldowns.set(provider, seconds)

@@ -87,7 +87,10 @@ async def _skip_reason(
     try:
         if await store.is_cooling(provider.name):
             return "cooldown"
-        if provider.rpd is not None and await store.count(provider.name) >= provider.rpd:
+        # Increment first, then compare: racing callers cannot overshoot rpd (FR-60). A refused
+        # call still consumed a slot; no refund, the provider is exhausted for today anyway.
+        used = await store.incr(provider.name)
+        if provider.rpd is not None and used > provider.rpd:
             return "over_budget"
     except Exception:
         logger.warning("budget check failed, allowing call", exc_info=True)
@@ -148,12 +151,18 @@ async def _attempt[T](
     messages: list[dict[str, Any]],
     response_format: dict[str, Any] | None,
     validate: Callable[[str], T],
+    *,
+    reserved: bool = True,
 ) -> _Result[T]:
-    """One logged provider call. Counts against the daily budget even when it fails."""
-    try:
-        await ctx.store.incr(provider.name)
-    except Exception:
-        logger.warning("budget incr failed", exc_info=True)
+    """One logged provider call. Counts against the daily budget even when it fails.
+
+    `reserved` means _skip_reason already took this call's budget slot (increment-first).
+    """
+    if not reserved:
+        try:
+            await ctx.store.incr(provider.name)
+        except Exception:
+            logger.warning("budget incr failed", exc_info=True)
     started = time.perf_counter()
     try:
         response = await providers.call(
@@ -192,7 +201,7 @@ async def _json_on_provider[M: BaseModel](
     if first.value is not None or first.raw_text is None:
         return first.value
     repair = repair_messages(prepared, first.raw_text, first.errors)
-    return (await _attempt(ctx, provider, repair, fmt, validate)).value
+    return (await _attempt(ctx, provider, repair, fmt, validate, reserved=False)).value
 
 
 async def _run[T](
@@ -329,7 +338,7 @@ async def _ping_one(name: str, config: LLMConfig, store: BudgetStore) -> PingSta
         return "over_budget"  # do not spend scarce quota on health checks
     ctx = _Ctx("ping", None, PING_MAX_TOKENS, store)
     result = await _attempt(
-        ctx, provider, [{"role": "user", "content": "ping"}], None, _validate_text
+        ctx, provider, [{"role": "user", "content": "ping"}], None, _validate_text, reserved=False
     )
     status: PingStatus = "ok" if result.value is not None else "down"
     _ping_cache[name] = (_ping_clock(), status)

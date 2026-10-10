@@ -1,5 +1,6 @@
 """Budget counters and cool-downs (FR-60, NFR-06)."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -45,9 +46,46 @@ class FakeRedis:
         if ex is not None:
             self.ttls[key] = ex
 
+    def pipeline(self, transaction: bool = True) -> "FakePipeline":
+        return FakePipeline(self)
+
     async def exists(self, key: str) -> int:
         self.commands.append("exists")
         return int(key in self.data)
+
+
+class FakePipeline:
+    """MULTI/EXEC stand-in: queued commands apply together on execute()."""
+
+    def __init__(self, redis: FakeRedis) -> None:
+        self._redis = redis
+        self._queue: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+
+    def incr(self, key: str) -> "FakePipeline":
+        self._queue.append(("incr", (key,), {}))
+        return self
+
+    def expire(self, key: str, seconds: int, nx: bool = False) -> "FakePipeline":
+        self._queue.append(("expire", (key, seconds), {"nx": nx}))
+        return self
+
+    async def execute(self) -> list[Any]:
+        out: list[Any] = []
+        for name, args, kwargs in self._queue:
+            if name == "incr":
+                key = args[0]
+                self._redis.commands.append("incr")
+                self._redis.data[key] = int(self._redis.data.get(key, 0)) + 1
+                out.append(int(self._redis.data[key]))
+            else:
+                key = args[0]
+                self._redis.commands.append("expire")
+                if kwargs["nx"] and key in self._redis.ttls:
+                    out.append(False)
+                else:
+                    self._redis.ttls[key] = args[1]
+                    out.append(True)
+        return out
 
 
 def redis_store(fake: FakeRedis, now: datetime = NOON) -> RedisBudgetStore:
@@ -65,7 +103,19 @@ async def test_redis_incr_counts_and_sets_two_day_expiry_once() -> None:
     assert await store.incr("gemini") == 2
     assert await store.count("gemini") == 2
     assert fake.ttls["budget:gemini:20261007"] == BUDGET_TTL_SECONDS == 172800
-    assert fake.commands.count("expire") == 1  # keep Upstash command counts low
+
+
+async def test_redis_incr_is_atomic_and_never_leaves_key_without_ttl() -> None:
+    """A key created by INCR always has a TTL; later INCRs do not extend it (FR-60, NFR-06)."""
+    fake = FakeRedis()
+    store = redis_store(fake)
+    await store.incr("gemini")
+    key = "budget:gemini:20261007"
+    assert fake.ttls[key] == BUDGET_TTL_SECONDS
+    fake.ttls[key] = 100  # simulate time passing
+    await store.incr("gemini")
+    assert fake.ttls[key] == 100
+    assert fake.commands == ["incr", "expire", "incr", "expire"]  # only inside the pipeline
 
 
 async def test_redis_counter_rolls_over_at_utc_midnight() -> None:
@@ -143,3 +193,9 @@ async def test_resilient_store_falls_back_when_primary_fails() -> None:
     assert await store.is_cooling("gemini")
     with pytest.raises(ConnectionError):
         await BrokenStore().count("x")
+
+
+async def test_in_memory_concurrent_incr_returns_distinct_values() -> None:
+    store = InMemoryBudgetStore()
+    values = await asyncio.gather(*(store.incr("a") for _ in range(5)))
+    assert sorted(values) == [1, 2, 3, 4, 5]
