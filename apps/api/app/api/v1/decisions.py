@@ -4,6 +4,7 @@ Resumes the item's LangGraph thread; ``approve`` and ``edit`` run the allowed ac
 """
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends
@@ -38,6 +39,17 @@ def _status_for(verdict: Verdict, item_status: str) -> str:
     return item_status
 
 
+def _require_future_snooze(body: DecisionIn) -> None:
+    """422 for a snooze time that has already passed (only here, never on graph replay)."""
+    until = body.snooze_until
+    if body.verdict != Verdict.SNOOZE or until is None:
+        return
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=UTC)
+    if until <= datetime.now(UTC):
+        raise ProblemError(422, "Validation failed", "snooze_until must be in the future")
+
+
 @router.post(
     "/{item_id}/decision",
     response_model=DecisionResult,
@@ -52,6 +64,7 @@ def _status_for(verdict: Verdict, item_status: str) -> str:
 async def submit_decision(
     item_id: uuid.UUID, body: DecisionIn, principal: Writer
 ) -> DecisionResult:
+    _require_future_snooze(body)
     try:
         outcome = await run.resume_item(item_id, principal.tenant_id, body)
     except ItemNotFound as exc:

@@ -1,6 +1,7 @@
 """The compiled graph end to end with fakes and an in-memory checkpointer (FR-30, FR-33, NFR-03)."""
 
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -161,6 +162,22 @@ async def test_snooze_loops_back_to_approval_until_unsnoozed(
     assert [d["verdict"] for d in world.decisions] == ["snooze", "approve"]
     assert [a["type"] for a in world.executed] == ["remind"]
     assert len(fake_llm.calls_for("decide")) == 1
+
+
+async def test_resume_replay_after_snooze_time_passed_still_completes(
+    world: World, fake_llm: FakeLLM
+) -> None:
+    """M9: the graph must not re-apply the API's future-time check on resume."""
+    fake_llm.script("normalise", {"entities": {}}, repeat=True).script("decide", DECISION_OUT)
+    g = graph()
+    await run(g)
+    past = datetime.now(UTC) - timedelta(hours=1)
+
+    replayed = await run(g, Command(resume={"verdict": "snooze", "snooze_until": past.isoformat()}))
+
+    assert "__interrupt__" in replayed
+    assert world.item.status == "snoozed"
+    assert [d["verdict"] for d in world.decisions] == ["snooze"]
 
 
 async def test_auto_autonomy_approves_only_allow_listed_actions(

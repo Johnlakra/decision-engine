@@ -1,6 +1,6 @@
 """Decision schemas: LLM output, stored decision and the human verdict (C1, FR-33, FR-34)."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -60,7 +60,11 @@ class StoredDecision(DecisionOut):
 
 
 class DecisionIn(BaseModel):
-    """Body of ``POST /v1/items/{id}/decision`` (API.md)."""
+    """Body of ``POST /v1/items/{id}/decision`` (API.md).
+
+    The "snooze_until is in the future" rule is an API-layer check (``api/v1/decisions.py``): the
+    graph re-validates this model on a resume replay, long after the time may have passed.
+    """
 
     verdict: Verdict
     option: str | None = None
@@ -69,14 +73,9 @@ class DecisionIn(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode="after")
-    def _snooze_needs_future_time(self) -> Self:
+    def _snooze_needs_time(self) -> Self:
         if self.verdict != Verdict.SNOOZE:
             return self
-        until = self.snooze_until
-        if until is None:
+        if self.snooze_until is None:
             raise ValueError("snooze_until is required for snooze")
-        if until.tzinfo is None:
-            until = until.replace(tzinfo=UTC)
-        if until <= datetime.now(UTC):
-            raise ValueError("snooze_until must be in the future")
         return self

@@ -65,11 +65,12 @@ def test_stored_decision_extends_out() -> None:
     assert stored.warnings == []
 
 
-def test_snooze_requires_future_snooze_until() -> None:
+def test_snooze_requires_snooze_until_but_not_a_future_one() -> None:
+    # the "future" rule lives in the API layer so a graph resume replay cannot fail on it (M9)
     with pytest.raises(ValidationError, match="snooze_until"):
         DecisionIn(verdict=Verdict.SNOOZE)
-    with pytest.raises(ValidationError, match="snooze_until"):
-        DecisionIn(verdict=Verdict.SNOOZE, snooze_until=datetime.now(UTC) - timedelta(minutes=1))
+    past = DecisionIn(verdict=Verdict.SNOOZE, snooze_until=datetime.now(UTC) - timedelta(minutes=1))
+    assert past.snooze_until is not None
     ok = DecisionIn(verdict=Verdict.SNOOZE, snooze_until=datetime.now(UTC) + timedelta(hours=1))
     assert ok.snooze_until is not None
 
