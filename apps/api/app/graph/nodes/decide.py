@@ -11,6 +11,7 @@ from app.graph.sensitivity import effective_sensitivity
 from app.graph.state import GraphState
 from app.graph.text import fenced_content
 from app.llm import gateway
+from app.llm.fence import fence
 from app.niches.models import NicheConfig
 from app.schemas.decision import DecisionOut
 from app.security.untrusted import as_data
@@ -69,7 +70,7 @@ def _examples(corrections: list[store.Correction]) -> str:
         f"{' (edited)' if c.edited else ''}".rstrip()
         for c in corrections
     ]
-    return "\n\nPast owner decisions (data):\n" + as_data("\n".join(lines))
+    return "\n\nPast owner decisions (data):\n" + fence("\n".join(lines), "examples")
 
 
 def user_prompt(state: GraphState, fenced: str, corrections: list[store.Correction]) -> str:
