@@ -58,7 +58,10 @@ def test_hints_sensitivity_enum_and_limits() -> None:
 def test_callback_url_must_be_https(settings_env: pytest.MonkeyPatch) -> None:
     from app.core.config import get_settings
 
+    # Arrange: pin the setting so a developer's local .env cannot loosen the https rule
+    settings_env.setenv("WEBHOOK_ALLOW_PRIVATE_URLS", "false")
     get_settings.cache_clear()
+    # Act / Assert
     assert IngestItemIn.model_validate(_body(callback_url="https://x.io/cb")).callback_url
     for bad in ("http://x.io/cb", "ftp://x.io", "/relative", "https://" + "a" * 2000):
         with pytest.raises(ValidationError):
