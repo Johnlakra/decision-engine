@@ -1,5 +1,6 @@
 """Worker pipeline wiring on real Postgres (FR-20, NFR-02, NFR-03). C9 batch hook + handlers."""
 
+import logging
 import uuid
 from collections.abc import AsyncIterator, Sequence
 from typing import Any
@@ -342,3 +343,37 @@ async def test_large_batch_is_triaged_in_bounded_sub_batches(  # NFR-03
     assert sizes == [2, pipeline.PREPARE_SUB_BATCH]
     for item_id, _ in pairs:
         assert await _status(factory, item_id) != "new"
+
+
+async def test_prepare_batch_failure_logs_type_and_item_ids_only(
+    factory: Factory,
+    tenant_id: uuid.UUID,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """NFR-07: no exception message (may hold item content) in logs."""
+    from pydantic import BaseModel, ValidationError
+
+    sentinel = "SENTINEL-SECRET-BODY-123"
+
+    class M(BaseModel):
+        n: int
+
+    async def boom(*_: Any, **__: Any) -> None:
+        try:
+            M.model_validate({"n": sentinel})
+        except ValidationError as exc:
+            raise exc from None
+
+    monkeypatch.setattr(pipeline, "_prepare", boom)
+    pairs = await _seed(factory, tenant_id, 1)
+    jobs = await _jobs(factory, [job_id for _, job_id in pairs])
+    caplog.set_level(logging.DEBUG)
+    await pipeline.prepare_batch(factory, jobs)
+    own = [r for r in caplog.records if r.name == "app.workers.pipeline"]
+    assert own
+    text = " ".join(f"{r.getMessage()} {r.__dict__} {r.exc_text}" for r in own)
+    assert sentinel not in text
+    assert "ValidationError" in text
+    assert str(pairs[0][0]) in text
+    assert all(r.exc_info is None for r in own)

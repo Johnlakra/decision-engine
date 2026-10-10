@@ -97,8 +97,13 @@ async def prepare_batch(factory: async_sessionmaker[AsyncSession], jobs: Sequenc
     try:
         await _prepare(factory, jobs)
     except Exception as exc:
+        # NFR-07: exception type + item ids only; messages can carry item content
         log.warning(
-            "batch prepare failed; per-job handlers continue", extra={"error": repr(exc)[:80]}
+            "batch prepare failed; per-job handlers continue",
+            extra={
+                "error_type": type(exc).__name__,
+                "item_ids": [str(j.item_id) for j in jobs if j.item_id is not None],
+            },
         )
 
 

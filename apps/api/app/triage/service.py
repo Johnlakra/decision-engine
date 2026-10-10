@@ -111,8 +111,8 @@ async def _laya_batch(
     model = get_settings().laya_model.strip() or None
     try:
         results = await client.batch(states, questions, model=model)
-    except Exception:  # the client should never raise; Laya must not lose items
-        log.warning("laya client raised", exc_info=True)
+    except Exception as exc:  # the client should never raise; Laya must not lose items
+        log.warning("laya client raised error_type=%s", type(exc).__name__)
         return [None] * len(states)
     return results if len(results) == len(states) else [None] * len(states)
 
@@ -193,8 +193,9 @@ async def _run_fallback(
         except FallbackUnavailable:
             work.error = "fallback_unavailable"
             return
-        except Exception:
-            log.warning("fallback raised item=%s", work.item.id, exc_info=True)
+        except Exception as exc:
+            # NFR-07: type + id only; messages/tracebacks can carry item content
+            log.warning("fallback raised item=%s error_type=%s", work.item.id, type(exc).__name__)
             work.error = "fallback_unavailable"
             return
         finally:
@@ -403,6 +404,10 @@ async def triage_items(
     return [TriageOutcome(item.id, outcomes[item.id]) for item in items]
 
 
+def _ids(works: list[_Work]) -> str:
+    return ",".join(str(w.item.id) for w in works)
+
+
 async def _triage(
     session: AsyncSession, todo: list[Item], registry: NicheRegistry
 ) -> list[tuple[Item, str]]:
@@ -415,8 +420,12 @@ async def _triage(
     sem = asyncio.Semaphore(FALLBACK_CONCURRENCY)
     try:
         core = core_questions(registry.enabled())
-    except QuestionError:
-        log.error("core questions invalid; parking items for human triage", exc_info=True)
+    except QuestionError as exc:
+        log.error(
+            "core questions invalid; parking items for human triage error_type=%s items=%s",
+            type(exc).__name__,
+            _ids(works),
+        )
         for work in works:
             _fail(work, "questions_invalid")
         core = {}
@@ -425,8 +434,12 @@ async def _triage(
         try:
             await _phase_core(works, core, client, registry, default_mode, sem)
             await _phase_niche(works, client, registry, sem)
-        except Exception:
-            log.error("triage stage failed unexpectedly", exc_info=True)
+        except Exception as exc:
+            log.error(
+                "triage stage failed unexpectedly error_type=%s items=%s",
+                type(exc).__name__,
+                _ids(works),
+            )
             for work in works:
                 if not work.answers:
                     _fail(work, "triage_error")
@@ -436,8 +449,8 @@ async def _triage(
 async def _complete(session: AsyncSession, work: _Work, registry: NicheRegistry) -> str:
     try:
         status = _finalise(work, registry)
-    except Exception:
-        log.error("finalise failed item=%s", work.item.id, exc_info=True)
+    except Exception as exc:
+        log.error("finalise failed item=%s error_type=%s", work.item.id, type(exc).__name__)
         work.error = "triage_error"
         status = _finalise(work, registry)
     if status != ItemStatus.NEEDS_HUMAN_TRIAGE.value:
