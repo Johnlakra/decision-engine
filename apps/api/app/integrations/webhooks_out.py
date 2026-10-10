@@ -37,6 +37,7 @@ log = logging.getLogger(__name__)
 RETRY_SCHEDULE_S: tuple[int, ...] = (60, 300, 1800, 7200)
 MAX_ATTEMPTS = len(RETRY_SCHEDULE_S) + 1
 ACTION_EXTRA_KEYS = ("action", "ok")
+MAX_RESPONSE_BYTES = 64 * 1024  # response bodies are read up to this, then discarded
 
 
 @dataclass(frozen=True)
@@ -151,6 +152,117 @@ def _record_failure(
     return DeliveryOutcome(delivered=False, retry_at=delivery.next_attempt_at)
 
 
+@dataclass(frozen=True)
+class SendRequest:
+    """Plain values for one attempt, so no ORM row is touched while the POST is in flight."""
+
+    delivery_id: uuid.UUID
+    event: str
+    payload: dict[str, Any]
+    url: str
+    secret_enc: str
+
+
+@dataclass(frozen=True)
+class SendResult:
+    """What one HTTP attempt produced; ``status_code`` is None when no response arrived."""
+
+    status_code: int | None
+
+
+async def _post_bounded(
+    url: str,
+    body: bytes,
+    headers: dict[str, str],
+    *,
+    transport: httpx.AsyncBaseTransport | None,
+) -> int:
+    """POST and return the status code. The response body is read up to a cap, then dropped.
+
+    The status code is kept even when the drain is cut short by the total timeout or a
+    network error, so a 2xx with a hostile body still counts as delivered.
+    """
+    timeout = get_settings().webhook_timeout_seconds
+    status_code: int | None = None
+    try:
+        async with asyncio.timeout(timeout):
+            async with (
+                httpx.AsyncClient(
+                    timeout=timeout, follow_redirects=False, trust_env=False, transport=transport
+                ) as client,
+                client.stream("POST", url, content=body, headers=headers) as response,
+            ):
+                status_code = response.status_code
+                read = 0
+                async for chunk in response.aiter_raw():
+                    read += len(chunk)
+                    if read >= MAX_RESPONSE_BYTES:
+                        break
+    except (httpx.HTTPError, TimeoutError):
+        if status_code is None:
+            raise
+    if status_code is None:  # unreachable: the except block re-raises without a status
+        raise httpx.TransportError("no response")
+    return status_code
+
+
+async def send_once(
+    request: SendRequest,
+    *,
+    resolver: Resolver | None = None,
+    network_backend: httpcore.AsyncNetworkBackend | None = None,
+) -> SendResult:
+    """One HTTP attempt using plain values only (no ORM rows, so no DB lock is needed).
+
+    The connection is pinned to the addresses the SSRF check vetted (no second DNS lookup),
+    and proxy environment variables are ignored, so neither can route around the check.
+    """
+    settings = get_settings()
+    try:
+        vetted = await asyncio.to_thread(
+            partial(
+                check_url,
+                request.url,
+                allow_private=settings.webhook_allow_private_urls,
+                resolver=resolver,
+            )
+        )
+    except UnsafeUrl:
+        log.warning("webhook delivery=%s refused: unsafe url", request.delivery_id)
+        return SendResult(None)
+    body = serialize(request.payload)
+    secret = decrypt(request.secret_enc).encode()
+    headers = {
+        "Content-Type": "application/json",
+        "X-DE-Signature": sign(secret, body),
+        "X-DE-Event": request.event,
+        "X-DE-Delivery": str(request.delivery_id),
+    }
+    hostname = urlsplit(request.url).hostname or ""
+    transport = (
+        pinned_transport(hostname, vetted, network_backend=network_backend) if vetted else None
+    )
+    try:
+        status_code = await _post_bounded(request.url, body, headers, transport=transport)
+    except (httpx.HTTPError, TimeoutError) as exc:
+        log.info("webhook delivery=%s failed: %s", request.delivery_id, type(exc).__name__)
+        return SendResult(None)
+    return SendResult(status_code)
+
+
+def apply_result(delivery: WebhookDelivery, result: SendResult, now: datetime) -> DeliveryOutcome:
+    """Record one attempt's result on the delivery row."""
+    status_code = result.status_code
+    if status_code is not None and 200 <= status_code < 300:
+        delivery.attempts += 1
+        delivery.last_status_code = status_code
+        delivery.status = DeliveryStatus.DELIVERED.value
+        return DeliveryOutcome(delivered=True)
+    if status_code is not None:
+        log.info("webhook delivery=%s got status %s", delivery.id, status_code)
+    return _record_failure(delivery, status_code, now)
+
+
 async def deliver_once(
     delivery: WebhookDelivery,
     subscription: WebhookSubscription,
@@ -159,59 +271,23 @@ async def deliver_once(
     resolver: Resolver | None = None,
     network_backend: httpcore.AsyncNetworkBackend | None = None,
 ) -> DeliveryOutcome:
-    """Make one attempt and update the delivery row. Never raises for HTTP/network failures.
-
-    The connection is pinned to the addresses the SSRF check vetted (no second DNS lookup),
-    and proxy environment variables are ignored, so neither can route around the check.
-    """
-    moment = now or utcnow()
-    settings = get_settings()
-    try:
-        vetted = await asyncio.to_thread(
-            partial(
-                check_url,
-                subscription.url,
-                allow_private=settings.webhook_allow_private_urls,
-                resolver=resolver,
-            )
-        )
-    except UnsafeUrl:
-        log.warning("webhook delivery=%s refused: unsafe url", delivery.id)
-        return _record_failure(delivery, None, moment)
-    body = serialize(delivery.payload)
-    secret = decrypt(subscription.secret_enc).encode()
-    headers = {
-        "Content-Type": "application/json",
-        "X-DE-Signature": sign(secret, body),
-        "X-DE-Event": delivery.event,
-        "X-DE-Delivery": str(delivery.id),
-    }
-    try:
-        hostname = urlsplit(subscription.url).hostname or ""
-        transport = (
-            pinned_transport(hostname, vetted, network_backend=network_backend) if vetted else None
-        )
-        async with httpx.AsyncClient(
-            timeout=settings.webhook_timeout_seconds,
-            follow_redirects=False,
-            trust_env=False,
-            transport=transport,
-        ) as client:
-            response = await client.post(subscription.url, content=body, headers=headers)
-    except httpx.HTTPError as exc:
-        log.info("webhook delivery=%s failed: %s", delivery.id, type(exc).__name__)
-        return _record_failure(delivery, None, moment)
-    if 200 <= response.status_code < 300:
-        delivery.attempts += 1
-        delivery.last_status_code = response.status_code
-        delivery.status = DeliveryStatus.DELIVERED.value
-        return DeliveryOutcome(delivered=True)
-    log.info("webhook delivery=%s got status %s", delivery.id, response.status_code)
-    return _record_failure(delivery, response.status_code, moment)
+    """Make one attempt and update the delivery row. Never raises for HTTP/network failures."""
+    request = SendRequest(
+        delivery_id=delivery.id,
+        event=delivery.event,
+        payload=delivery.payload,
+        url=subscription.url,
+        secret_enc=subscription.secret_enc,
+    )
+    result = await send_once(
+        request,
+        resolver=resolver,
+        network_backend=network_backend,
+    )
+    return apply_result(delivery, result, now or utcnow())
 
 
-async def deliver(session: AsyncSession, job: Job) -> None:
-    """Run the attempt for ``job.payload['delivery_id']`` and schedule a retry if needed."""
+async def _lock_pending(session: AsyncSession, job: Job) -> WebhookDelivery | None:
     delivery = await session.scalar(
         select(WebhookDelivery)
         .where(
@@ -221,19 +297,45 @@ async def deliver(session: AsyncSession, job: Job) -> None:
         .with_for_update()
     )
     if delivery is None or delivery.status != DeliveryStatus.PENDING.value:
+        return None
+    return delivery
+
+
+async def deliver(session: AsyncSession, job: Job) -> None:
+    """Run the attempt for ``job.payload['delivery_id']`` and schedule a retry if needed.
+
+    Two short transactions around the HTTP call: the first reads what to send and commits
+    (releasing the row lock), the second re-locks the row and records the outcome. The job
+    queue already gives each job to a single worker, so nothing is held during the POST.
+    """
+    delivery = await _lock_pending(session, job)
+    if delivery is None:
         return
     subscription = await session.get(WebhookSubscription, delivery.subscription_id)
     if subscription is None or not subscription.enabled:
         delivery.status = DeliveryStatus.FAILED.value
         return
-    outcome = await deliver_once(delivery, subscription)
+    delivery_id = delivery.id
+    request = SendRequest(
+        delivery_id=delivery_id,
+        event=delivery.event,
+        payload=dict(delivery.payload),
+        url=subscription.url,
+        secret_enc=subscription.secret_enc,
+    )
+    await session.commit()  # release the FOR UPDATE lock before talking to the subscriber
+    result = await send_once(request)
+    delivery = await _lock_pending(session, job)
+    if delivery is None:
+        return
+    outcome = apply_result(delivery, result, utcnow())
     if outcome.retry_at is not None:
         await queue.enqueue(
             session,
             tenant_id=job.tenant_id,
             kind=JobKind.WEBHOOK,
             item_id=job.item_id,
-            payload={"op": "deliver", "delivery_id": str(delivery.id)},
+            payload={"op": "deliver", "delivery_id": str(delivery_id)},
             run_at=outcome.retry_at,
         )
 
