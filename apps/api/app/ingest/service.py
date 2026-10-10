@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +33,18 @@ async def items_today(session: AsyncSession, tenant_id: uuid.UUID) -> int:
         .where(Item.tenant_id == tenant_id, Item.created_at >= start_of_utc_day(utcnow()))
     )
     return int((await session.execute(stmt)).scalar_one())
+
+
+async def lock_tenant_quota(session: AsyncSession, tenant_id: uuid.UUID) -> None:
+    """Serialize count-and-insert per tenant until commit/rollback (NFR-05)."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"items-cap:{tenant_id}"},
+    )
+
+
+async def remaining_quota(session: AsyncSession, tenant_id: uuid.UUID, cap: int) -> int:
+    return max(0, cap - await items_today(session, tenant_id))
 
 
 async def daily_cap_reached(session: AsyncSession, tenant_id: uuid.UUID, cap: int) -> bool:

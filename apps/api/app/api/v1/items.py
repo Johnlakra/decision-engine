@@ -15,9 +15,10 @@ from app.core.errors import PROBLEM_JSON, ProblemError
 from app.core.time import utcnow
 from app.db.session import get_session
 from app.ingest.service import (
-    daily_cap_reached,
     find_existing,
     ingest_one,
+    lock_tenant_quota,
+    remaining_quota,
     seconds_until_utc_midnight,
 )
 from app.models import Decision, Item
@@ -100,12 +101,13 @@ async def create_item(
     session: Session,
 ) -> IngestResult | JSONResponse:
     """Store the payload untouched and queue it for the pipeline. Idempotent."""
+    await lock_tenant_quota(session, principal.tenant_id)  # count-and-insert is atomic
     existing = await find_existing(session, principal.tenant_id, body.source, body.source_ref)
     if existing is not None:  # idempotent repeat is never capped (FR-07 over FR-02)
         response.status_code = 200
         return IngestResult(id=str(existing.id), status=existing.status)
     cap = get_settings().items_per_day
-    if await daily_cap_reached(session, principal.tenant_id, cap):
+    if await remaining_quota(session, principal.tenant_id, cap) <= 0:
         return _cap_response(request)
     item, created = await ingest_one(session, principal.tenant_id, body)
     await session.commit()
@@ -138,10 +140,13 @@ async def create_items_bulk(
         raise ProblemError(
             422, "Validation failed", f"'items' must be a list of 1 to {MAX_BULK} objects"
         )
-    capped = await daily_cap_reached(session, principal.tenant_id, get_settings().items_per_day)
+    await lock_tenant_quota(session, principal.tenant_id)
+    remaining = await remaining_quota(session, principal.tenant_id, get_settings().items_per_day)
     results: list[BulkRow] = []
     for index, raw_row in enumerate(rows):
-        results.append(await _ingest_row(session, principal.tenant_id, index, raw_row, capped))
+        row, created = await _ingest_row(session, principal.tenant_id, index, raw_row, remaining)
+        results.append(row)
+        remaining -= int(created)  # only new rows spend quota; repeats are free
     refused = any(r.error == CAP_ROW_ERROR for r in results)
     if refused and all(r.id is None for r in results):  # nothing stored or found: plain 429
         return _cap_response(request)
@@ -150,23 +155,24 @@ async def create_items_bulk(
 
 
 async def _ingest_row(
-    session: AsyncSession, tenant_id: uuid.UUID, index: int, raw_row: Any, capped: bool
-) -> BulkRow:
+    session: AsyncSession, tenant_id: uuid.UUID, index: int, raw_row: Any, remaining: int
+) -> tuple[BulkRow, bool]:
+    """Returns the row result and whether a new item was stored (spends quota)."""
     try:
         body = IngestItemIn.model_validate(raw_row)
     except ValidationError as exc:
-        return BulkRow(index=index, error=_row_error(exc))
-    if capped:  # at the cap only already-stored rows pass; new ones are refused
+        return BulkRow(index=index, error=_row_error(exc)), False
+    if remaining <= 0:  # out of quota: only already-stored rows pass; new ones are refused
         existing = await find_existing(session, tenant_id, body.source, body.source_ref)
         if existing is None:
-            return BulkRow(index=index, error=CAP_ROW_ERROR)
-        return BulkRow(index=index, id=str(existing.id), status=existing.status)
+            return BulkRow(index=index, error=CAP_ROW_ERROR), False
+        return BulkRow(index=index, id=str(existing.id), status=existing.status), False
     try:
         async with session.begin_nested():
-            item, _ = await ingest_one(session, tenant_id, body)
+            item, created = await ingest_one(session, tenant_id, body)
     except Exception:  # noqa: BLE001 - one bad row must not fail the batch
-        return BulkRow(index=index, error="could not store item")
-    return BulkRow(index=index, id=str(item.id), status=item.status)
+        return BulkRow(index=index, error="could not store item"), False
+    return BulkRow(index=index, id=str(item.id), status=item.status), created
 
 
 def _parse_cursor(cursor: str | None) -> uuid.UUID | None:
