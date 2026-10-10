@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import and_, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.ids import new_id
@@ -18,6 +18,11 @@ NOTIFY_CHANNEL = "jobs_new"
 BACKOFF_BASE_S = 30
 BACKOFF_CAP_S = 30 * 60
 DEFAULT_LEASE = timedelta(minutes=5)
+# PROCESS jobs run the whole graph inside one claim: chained nodes, each LLM call up to 45 s per
+# provider attempt across a fallback chain. 15 min covers the worst case with margin, so a live
+# job is not reclaimed (which would hit ItemBusy); a crashed worker is still recovered in 15 min.
+PROCESS_LEASE = timedelta(minutes=15)
+ITEM_BUSY_RETRY_DELAY = timedelta(seconds=15)
 MAX_ERROR_CHARS = 200
 
 
@@ -141,10 +146,29 @@ async def release(session: AsyncSession, jobs: Sequence[Job]) -> None:
         )
 
 
-async def reclaim_stale(session: AsyncSession, lease: timedelta = DEFAULT_LEASE) -> int:
-    """Requeue running jobs whose lease expired (worker crashed); fail them if out of attempts."""
-    cutoff = utcnow() - lease
-    stale = Job.status == JobStatus.RUNNING.value, Job.locked_at < cutoff
+async def release_busy(session: AsyncSession, job: Job) -> None:
+    """Requeue a job whose item is locked elsewhere, without burning an attempt."""
+    await release(session, [job])
+    await session.execute(
+        update(Job).where(Job.id == job.id).values(run_at=utcnow() + ITEM_BUSY_RETRY_DELAY)
+    )
+
+
+async def reclaim_stale(session: AsyncSession, lease: timedelta | None = None) -> int:
+    """Requeue running jobs whose lease expired (worker crashed); fail them if out of attempts.
+
+    ``lease=None`` uses ``PROCESS_LEASE`` for process jobs and ``DEFAULT_LEASE`` for the rest; an
+    explicit ``lease`` applies to every kind.
+    """
+    now = utcnow()
+    process_lease = PROCESS_LEASE if lease is None else lease
+    other_lease = DEFAULT_LEASE if lease is None else lease
+    is_process = Job.kind == JobKind.PROCESS.value
+    expired = or_(
+        and_(is_process, Job.locked_at < now - process_lease),
+        and_(~is_process, Job.locked_at < now - other_lease),
+    )
+    stale = Job.status == JobStatus.RUNNING.value, expired
     exhausted = (
         await session.execute(
             update(Job)

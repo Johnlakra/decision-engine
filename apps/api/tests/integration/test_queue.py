@@ -85,7 +85,7 @@ async def test_stale_lease_is_reclaimed(db_session: AsyncSession, tenant: Tenant
     fresh = await queue.enqueue(db_session, tenant_id=tenant.id, kind=JobKind.PROCESS)
     stale = await queue.enqueue(db_session, tenant_id=tenant.id, kind=JobKind.PROCESS)
     now = utcnow()
-    for job_id, locked in ((fresh, now), (stale, now - timedelta(minutes=6))):
+    for job_id, locked in ((fresh, now), (stale, now - queue.PROCESS_LEASE - timedelta(minutes=1))):
         await db_session.execute(
             update(Job)
             .where(Job.id == job_id)

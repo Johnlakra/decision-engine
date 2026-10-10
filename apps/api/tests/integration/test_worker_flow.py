@@ -1,10 +1,12 @@
 """insert + enqueue -> worker -> item normalised, job done; failures retried (NFR-02, NFR-08)."""
 
+import uuid
 from collections.abc import AsyncIterator, Mapping
+from datetime import timedelta
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -225,3 +227,104 @@ async def test_thread_delete_error_does_not_mask_failure(
     await _fail_terminally(factory, job, boom)
     fresh_item, fresh_job = await _reload(factory, item, job)
     assert (fresh_item.status, fresh_job.status) == ("failed", "failed")
+
+
+async def _seed_item_job(
+    factory: async_sessionmaker[AsyncSession],
+    item: Item,
+    kind: JobKind,
+    *,
+    status: str,
+    payload: dict[str, object] | None = None,
+    attempts: int = 4,
+) -> uuid.UUID:
+    async with factory() as session:
+        row = await session.get(Item, item.id, with_for_update=True)
+        assert row is not None
+        row.status = status
+        job_id = await queue.enqueue(
+            session, tenant_id=item.tenant_id, kind=kind, item_id=item.id, payload=payload
+        )
+        job = await session.get(Job, job_id)
+        assert job is not None
+        job.attempts, job.max_attempts = attempts, 5
+        await session.commit()
+    return job_id
+
+
+@pytest.mark.usefixtures("runtime")
+async def test_failed_webhook_job_leaves_pending_approval_and_checkpoint(  # FR-33, NFR-03
+    committed_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """Terminal failure of a non-PROCESS job must not fail the item or drop its checkpoint."""
+    async with committed_db() as session:
+        tenant = Tenant(name="Webhook Fail")
+        session.add(tenant)
+        await session.flush()
+        item = Item(
+            id=new_id(), tenant_id=tenant.id, source="manual", source_ref="wh", raw={"t": "x"}
+        )
+        session.add(item)
+        await session.commit()
+    thread_id = str(item.id)
+    await _put_checkpoint(thread_id)
+    job_id = await _seed_item_job(committed_db, item, JobKind.WEBHOOK, status="awaiting_approval")
+    # first claim must pick up only our job: drain others is unnecessary (kinds filtered by id)
+
+    async def boom(session: AsyncSession, claimed: Job) -> None:
+        raise RuntimeError
+
+    await _worker(committed_db, handlers={JobKind.WEBHOOK: boom}, manage_graph=True).run_once()
+    async with committed_db() as session:
+        fresh_item = await session.get(Item, item.id)
+        fresh_job = await session.get(Job, job_id)
+    assert fresh_job is not None and fresh_item is not None
+    assert fresh_job.status == "failed"
+    assert fresh_item.status == "awaiting_approval"
+    assert await _checkpoint_count(committed_db, thread_id) == 1
+
+
+async def test_item_busy_releases_job_without_consuming_attempt(  # NFR-02, NFR-08
+    factory: async_sessionmaker[AsyncSession], seeded: tuple[Item, Job]
+) -> None:
+    from app.graph.errors import ItemBusy
+
+    item, job = seeded
+    async with factory() as session:
+        row = await session.get(Job, job.id)
+        assert row is not None
+        row.attempts, row.max_attempts = 4, 5  # one more burned attempt would fail it
+        await session.commit()
+
+    async def busy(session: AsyncSession, claimed: Job) -> None:
+        raise ItemBusy("held elsewhere")
+
+    await _worker(factory, handlers={JobKind.PROCESS: busy}).run_once()
+    fresh_item, fresh_job = await _reload(factory, item, job)
+    assert fresh_job.status == "queued"
+    assert fresh_job.attempts == 4
+    assert fresh_job.locked_by is None
+    assert fresh_job.run_at > utcnow()
+    assert fresh_item.status == "new"
+
+
+async def test_process_job_gets_longer_lease_than_other_kinds(  # NFR-02
+    factory: async_sessionmaker[AsyncSession], seeded: tuple[Item, Job]
+) -> None:
+    item, job = seeded
+    async with factory() as session:
+        other = await queue.enqueue(session, tenant_id=item.tenant_id, kind=JobKind.WEBHOOK)
+        age = queue.DEFAULT_LEASE + timedelta(minutes=1)
+        for job_id in (job.id, other):
+            await session.execute(
+                update(Job)
+                .where(Job.id == job_id)
+                .values(status="running", locked_by="dead", locked_at=utcnow() - age, attempts=1)
+            )
+        assert await queue.reclaim_stale(session) == 1
+        await session.commit()
+        process_row = await session.get(Job, job.id)
+        other_row = await session.get(Job, other)
+    assert process_row is not None and other_row is not None
+    assert process_row.status == "running"
+    assert other_row.status == "queued"

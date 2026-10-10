@@ -15,6 +15,7 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger, log_context
 from app.core.time import TENANT_TZ
 from app.db.session import async_session_factory
+from app.graph.errors import ItemBusy
 from app.models.enums import ItemStatus, JobKind, JobStatus
 from app.models.item import Item
 from app.models.job import Job
@@ -106,6 +107,9 @@ class Worker:
                     await queue.complete(session, job.id)
                     await session.commit()
                 log.info("job done", extra={"kind": job.kind})
+            except ItemBusy:
+                log.info("item busy; job released", extra={"kind": job.kind})
+                await self._release_busy(job)
             except Exception as exc:
                 error = queue.describe_exception(exc)
                 log.warning(
@@ -117,11 +121,18 @@ class Worker:
     def _item_ctx(job: Job) -> dict[str, uuid.UUID]:
         return {"item_id": job.item_id} if job.item_id else {}
 
+    async def _release_busy(self, job: Job) -> None:
+        async with self._factory() as session:
+            await queue.release_busy(session, job)
+            await session.commit()
+
     async def _record_failure(self, job: Job, error: str) -> None:
         failed_item_id: uuid.UUID | None = None
         async with self._factory() as session:
             status = await queue.fail(session, job, error)
-            if status is JobStatus.FAILED and job.item_id:
+            # Only a failed PROCESS job fails the item; other kinds (webhook, action, unsnooze) must
+            # not destroy a pending approval or its checkpoint.
+            if status is JobStatus.FAILED and job.item_id and job.kind == JobKind.PROCESS.value:
                 item = await session.get(Item, job.item_id, with_for_update=True)
                 if item and can_transition(item.status, ItemStatus.FAILED):
                     transition(item, ItemStatus.FAILED)
