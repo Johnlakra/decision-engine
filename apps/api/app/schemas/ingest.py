@@ -1,5 +1,6 @@
 """Ingest request/response schemas; mirror /schemas/ingest_item.schema.json (C1, FR-01)."""
 
+import json
 from datetime import datetime
 from typing import Any, Literal
 from urllib.parse import urlparse
@@ -10,6 +11,7 @@ from app.core.config import get_settings
 
 MAX_BULK = 500
 MAX_CALLBACK_URL = 2000
+MAX_PAYLOAD_BYTES = 512_000  # serialized JSON size of one item's payload (NFR-05)
 
 
 def _check_url(value: str, *, schemes: tuple[str, ...]) -> str:
@@ -45,6 +47,14 @@ class IngestItemIn(BaseModel):
     payload: dict[str, Any] | list[Any] | str
     hints: Hints | None = None
     callback_url: str | None = Field(default=None, max_length=MAX_CALLBACK_URL)
+
+    @field_validator("payload")
+    @classmethod
+    def _payload_size(cls, value: Any) -> Any:
+        size = len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
+        if size > MAX_PAYLOAD_BYTES:
+            raise ValueError(f"payload exceeds {MAX_PAYLOAD_BYTES} bytes when serialized")
+        return value
 
     @field_validator("callback_url")
     @classmethod

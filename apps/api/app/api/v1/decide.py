@@ -4,10 +4,11 @@ Persists nothing about the request itself (no item, no decision, no checkpoint).
 """
 
 import asyncio
+import json
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.api.deps import require_scope
 from app.core.config import get_settings
@@ -32,6 +33,16 @@ class DecideIn(BaseModel):
     explain: bool = False
     language: str = Field(default="en", max_length=10)
     sensitivity: Literal["public", "private"] = "public"
+
+    @field_validator("state")
+    @classmethod
+    def _state_size(cls, value: Any) -> Any:
+        """Cap structured state before it is serialized into a prompt (NFR-05)."""
+        if not isinstance(value, str):
+            size = len(json.dumps(value, ensure_ascii=False))
+            if size > MAX_STATE_CHARS:
+                raise ValueError(f"state exceeds {MAX_STATE_CHARS} characters when serialized")
+        return value
 
 
 class DecideOut(BaseModel):

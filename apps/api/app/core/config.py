@@ -40,7 +40,9 @@ class Settings(BaseSettings):
     schemas_dir: Path = REPO_ROOT / "schemas"  # JSON schema directory (empty = default)
 
     data_dir: Path = REPO_ROOT / "data"  # uploads, exports, eval sets (empty = default)
-    items_per_day: int = 5000  # per-tenant soft cap on new items per UTC day (ADR 0004)
+    items_per_day: int = 5000  # per-tenant cap on new items per UTC day (ADR 0004)
+    max_request_bytes: int = 1_048_576  # max request body in bytes (413 above)
+    max_bulk_request_bytes: int = 10_485_760  # max body for POST /v1/items/bulk (413 above)
 
     # Database / cache
     database_url: str = "postgresql+asyncpg://de:de@db:5432/de"  # async SQLAlchemy URL
