@@ -18,14 +18,14 @@ async def try_consume_decide_call(session: AsyncSession, tenant_id: uuid.UUID, l
     """Count one decide call; False (and no increment) once ``limit`` is reached today (UTC)."""
     if limit <= 0:
         return False
-    stmt = pg_insert(DecideUsage).values(
+    insert_stmt = pg_insert(DecideUsage).values(
         tenant_id=tenant_id, day=utcnow().date(), calls=literal(1, Integer)
     )
-    stmt = stmt.on_conflict_do_update(
+    upsert_stmt = insert_stmt.on_conflict_do_update(
         index_elements=[DecideUsage.tenant_id, DecideUsage.day],
         set_={"calls": DecideUsage.calls + 1},
         where=DecideUsage.calls < limit,
-    ).returning(DecideUsage.calls)
-    row = (await session.execute(stmt)).first()
+    )
+    row = (await session.execute(upsert_stmt.returning(DecideUsage.calls))).first()
     await session.commit()
     return row is not None
