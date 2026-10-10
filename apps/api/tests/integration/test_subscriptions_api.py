@@ -42,7 +42,12 @@ async def test_create_list_delete_never_returns_secret(
     assert listed.json()["data"] == []
 
 
-async def test_loopback_url_is_422(api_client: httpx.AsyncClient, admin_key: str) -> None:
+async def test_loopback_url_is_422(
+    api_client: httpx.AsyncClient, admin_key: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Pin the setting so a developer's local .env cannot allow private URLs
+    monkeypatch.setenv("WEBHOOK_ALLOW_PRIVATE_URLS", "false")
+    get_settings.cache_clear()
     body = {**BODY, "url": "http://127.0.0.1/hook"}
     response = await api_client.post("/v1/subscriptions", json=body, headers=bearer(admin_key))
     assert response.status_code == 422
