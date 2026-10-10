@@ -28,7 +28,7 @@ from app.integrations.ssrf import Resolver, UnsafeUrl, check_url
 from app.models import Decision, Item, Job, WebhookDelivery, WebhookSubscription
 from app.models.enums import DeliveryStatus, JobKind
 from app.schemas.items import item_to_public
-from app.security.crypto import decrypt
+from app.security.crypto import CryptoNotConfigured, DecryptError, decrypt
 from app.security.hmac import sign
 from app.workers import queue
 
@@ -168,6 +168,7 @@ class SendResult:
     """What one HTTP attempt produced; ``status_code`` is None when no response arrived."""
 
     status_code: int | None
+    permanent: bool = False  # retrying cannot help (e.g. the stored secret cannot be decrypted)
 
 
 async def _post_bounded(
@@ -231,7 +232,13 @@ async def send_once(
         log.warning("webhook delivery=%s refused: unsafe url", request.delivery_id)
         return SendResult(None)
     body = serialize(request.payload)
-    secret = decrypt(request.secret_enc).encode()
+    try:
+        secret = decrypt(request.secret_enc).encode()
+    except (DecryptError, CryptoNotConfigured) as exc:
+        log.error(
+            "webhook delivery=%s secret unusable: %s", request.delivery_id, type(exc).__name__
+        )
+        return SendResult(None, permanent=True)
     headers = {
         "Content-Type": "application/json",
         "X-DE-Signature": sign(secret, body),
@@ -253,6 +260,11 @@ async def send_once(
 def apply_result(delivery: WebhookDelivery, result: SendResult, now: datetime) -> DeliveryOutcome:
     """Record one attempt's result on the delivery row."""
     status_code = result.status_code
+    if result.permanent:
+        delivery.attempts += 1
+        delivery.last_status_code = None
+        delivery.status = DeliveryStatus.FAILED.value
+        return DeliveryOutcome(delivered=False)
     if status_code is not None and 200 <= status_code < 300:
         delivery.attempts += 1
         delivery.last_status_code = status_code
