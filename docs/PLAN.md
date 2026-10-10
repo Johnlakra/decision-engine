@@ -29,17 +29,17 @@ smoke test (`make smoke-llm`) returns valid JSON; Laya smoke (`make smoke-laya`)
 ## Phase 1 — Core pipeline + first niches without connectors (weeks 2–3)
 Goal: `POST /v1/items` or `/v1/decide` → a real decision waiting for approval via API.
 
-- [ ] 1.1 `POST /v1/items`, `/bulk`, `GET /v1/items`, `GET /v1/items/{id}` (FR-01..03, FR-06) — **backend-builder**
-- [ ] 1.2 Normaliser: mapper registry + LLM normaliser + language detection (FR-10..13) — **pipeline-builder**
-- [ ] 1.3 Triage service: core questions from enabled niches, one Laya batch, store answers, modes off/shadow/on, LLM fallback classifier, `needs_human_triage` (FR-20..25) — **laya-integrator**
-- [ ] 1.4 Graph: state, builder from YAML, generic subgraph, policy, `interrupt()` approval, Postgres checkpointer, resume API `POST /v1/items/{id}/decision` (FR-30..34) — **langgraph-builder**
-- [ ] 1.5 Actions registry with `archive`, `label`, `snooze`, `remind`, `webhook`, `create_task` + idempotency log (FR-40, 41) — **pipeline-builder**
-- [ ] 1.6 Outbound webhooks + signing + retries (FR-42) — **integration-builder**
-- [ ] 1.7 `POST /v1/decide` sync (FR-35) — **langgraph-builder**
-- [ ] 1.8 Niches `generic` + `tech_stack` (tool: `stack_catalog` from `data/stacks.yaml`) with evals (≥ 30 rows each) — **niche-designer**
-- [ ] 1.9 Feedback write on every decision + export JSONL (FR-54, FR-80) — **laya-integrator**
-- [ ] 1.10 Python + TS client SDKs from OpenAPI (`packages/`) — **integration-builder**
-- [ ] 1.11 `make seed` loads 50 demo items across niches — **test-writer**
+- [x] 1.1 `POST /v1/items`, `/bulk`, `GET /v1/items`, `GET /v1/items/{id}` (FR-01..03, FR-06) — **backend-builder** (21e4ea3; A1: 6114340, 54f6eb2; fix 93341d9)
+- [x] 1.2 Normaliser: mapper registry + LLM normaliser + language detection (FR-10..13) — **pipeline-builder** (be20e68)
+- [x] 1.3 Triage service: core questions from enabled niches, one Laya batch, store answers, modes off/shadow/on, LLM fallback classifier, `needs_human_triage` (FR-20..25) — **laya-integrator** (1.3a: 652539b, 1.3b: ab0e5f3)
+- [x] 1.4 Graph: state, builder from YAML, generic subgraph, policy, `interrupt()` approval, Postgres checkpointer, resume API `POST /v1/items/{id}/decision` (FR-30..34) — **langgraph-builder** (1.4a: b1128a9, 1.4b: 2b4a121, 7833838)
+- [x] 1.5 Actions registry with `archive`, `label`, `snooze`, `remind`, `webhook`, `create_task` + idempotency log (FR-40, 41) — **pipeline-builder** (90499d1)
+- [x] 1.6 Outbound webhooks + signing + retries (FR-42) — **integration-builder** (5764408; A2 event emitter: 6d72497)
+- [x] 1.7 `POST /v1/decide` sync (FR-35) — **langgraph-builder** (2826012)
+- [x] 1.8 Niches `generic` + `tech_stack` (tool: `stack_catalog` from `data/stacks.yaml`) with evals (≥ 30 rows each) — **niche-designer** (1.8a: f1f2e26, 1.8b: 7f802dc; eval runner 1.9b: 7da31d9)
+- [x] 1.9 Feedback write on every decision + export JSONL (FR-54, FR-80) — **laya-integrator** (c71728b)
+- [x] 1.10 Python + TS client SDKs from OpenAPI (`packages/`) — **integration-builder** (631f40e)
+- [x] 1.11 `make seed` loads 50 demo items across niches — **test-writer** (d18870a; worker wiring P: c0d3bdc; API wiring W: db6155b, ed47a2d)
 
 **Acceptance**: posting "Building a school ERP, 3 devs, offline mobile needed, ₹0 budget" returns a
 `tech_stack` decision with options and rationale in `awaiting_approval`; approving it fires a signed webhook

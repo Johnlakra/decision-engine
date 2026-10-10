@@ -20,6 +20,7 @@ JSON columns are `jsonb`. Enums are `text` + CHECK (easier migrations than PG en
 | `llm_usage` | provider, model, purpose, item_id, prompt_tokens, completion_tokens, cost_inr numeric, latency_ms, ok, error_code | daily budgets fall back to counting here when Redis is absent |
 | `webhook_subscriptions` | url, events text[], secret_enc, enabled | |
 | `webhook_deliveries` | subscription_id, event, payload jsonb, status, attempts, next_attempt_at, last_status_code | status `pending`/`delivered`/`failed`; `payload` = the exact envelope bytes that are signed; retry after attempt n at +60/300/1800/7200 s, `failed` after 5 attempts (API.md) |
+| `decide_usage` | tenant_id, day date, calls int default 0 | PK (tenant_id, day) (no `id` column). CHECK calls ≥ 0. Per-tenant `POST /v1/decide` counter per UTC day; one upsert is the whole cap check (FR-35). Created by migration 0003 (`0003_decide_usage.py`, reversible) |
 | `uploads` | filename, mapping jsonb, status, total, done, failed, errors jsonb | |
 | `tool_cache` | tool, args_hash, result jsonb, expires_at | Agmarknet/weather caching |
 | `farmers` (phase 7) | phone_hash, language, village, district, crops jsonb, land_acres, consent_at | minimal PII, consent required |

@@ -5,6 +5,11 @@ Auth: `Authorization: Bearer de_<prefix>_<secret>` (API key, scoped). Errors: RF
 `application/problem+json` `{type, title, status, detail, errors?}`.
 Pagination: cursor (`?cursor=<opaque>&limit=50`, max 200) → `{data: [...], next_cursor}`.
 
+**Request size (NFR-05).** A body over `MAX_REQUEST_BYTES` (default 1,048,576) → `413` problem+json, and
+`POST /v1/items/bulk` allows `MAX_BULK_REQUEST_BYTES` (default 10,485,760) instead. The server checks
+`Content-Length` first, then counts streamed bytes, so an oversized body is cut off without being buffered.
+The `413` is added by middleware, so it is not listed in `/openapi.json`. Its `type` is `about:blank`.
+
 ## Items
 ### `POST /v1/items` — scope `items:write` (FR-01, FR-02)
 ```json
@@ -70,14 +75,32 @@ also accept `"acting"`, reserved for long-running actions in later phases.
   "sensitivity": "public"          // optional, default public (ADR 0005); private → only private_ok providers
 }
 ```
-→ `200 {"answers": {"sell": {"choice":"B","probabilities":{…},"confidence":0.71}}, "decision": {…}?, "explanation": "…"?, "model": "laya-english", "fallback": false}`
-- `fallback: true` when Laya gave no opinion and the LLM fallback classifier answered. Laya mode does not gate this endpoint.
+→ `200 {"answers": {"sell": {"choice":"B","probabilities":{…},"confidence":0.71}}, "decision": {…}?, "explanation": "…"?, "shadow": {…}?, "model": "laya-english", "fallback": false}`
+- **Laya mode.** This endpoint honours the server's `LAYA_MODE` (default `shadow`). Per-tenant and per-niche
+  overrides are not read here yet, so the server default applies to every call.
+  - `shadow` (default): the answers come from the LLM fallback classifier. Laya's answers are returned only in
+    `shadow`, and are never used as the answer.
+  - `on`: Laya answers at or above the confidence gate are used. The rest go to the LLM fallback. The gate is the
+    niche's `triage.min_confidence` when `niche` is set, otherwise 0.75.
+  - `off`: Laya is not called. All answers come from the LLM fallback.
+- `shadow` (additive, `null` when absent): `{"answers": {…} | null, "model": "…" | null, "latency_ms": null, "error": null}`.
+  It is `null` when Laya gave no usable answer. This endpoint sets only `answers` and `model`; `latency_ms` and
+  `error` are filled by triage, not here.
+- `fallback: true` when at least one answer came from the LLM fallback classifier. In `shadow` and `off` modes
+  this is true whenever `questions` is non-empty.
 - `decision` only with `niche` (runs extract/tools/decide/policy; writes nothing). One-shot autonomy is always
   `suggest` and `warnings` carries `"one-shot: no scam screening"` (no triage risk is available). A private niche forces
   private routing even when `sensitivity` is `public`. `explanation` (additive) is returned whenever `explain` is true,
   with or without `niche`.
-- Errors: `422` invalid questions (schema, ≤ 16 questions) or unknown or disabled niche · `503` fallback needed but unavailable, or private with no
-  `private_ok` provider (`type: .../no-private-provider`) · `504` after `DECIDE_TIMEOUT_SECONDS` (default 30).
+- **Daily cap.** Each tenant gets `DECIDE_DAILY_LIMIT_PER_TENANT` calls (default 500) per UTC day. Calls past
+  the limit get `429` problem+json `{"type": "https://decision-engine/problems/daily-decide-cap",
+  "title": "Daily decide cap reached", "status": 429}` with `Retry-After` = seconds until 00:00 UTC. The cap is
+  counted before the answer, so a call that passes body validation uses a slot even if it later returns `422`
+  or `503`. The per-key rate limit (`RATE_LIMIT_PER_MIN`, 120/min) also returns `429` + `Retry-After`.
+- Errors: `422` invalid questions (schema, ≤ 16 questions) or unknown or disabled niche · `413` body over
+  `MAX_REQUEST_BYTES` · `429` daily cap or rate limit (see above) · `503` fallback needed but unavailable, or
+  private with no `private_ok` provider (`type: .../no-private-provider`) · `504` after `DECIDE_TIMEOUT_SECONDS`
+  (default 30).
 
 ## Uploads (FR-04)
 `POST /v1/uploads` multipart `file` + `mapping` JSON:
