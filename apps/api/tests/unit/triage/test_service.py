@@ -319,7 +319,7 @@ async def test_unhinted_niche_questions_get_second_laya_call_per_group(
     assert fake_llm.calls == []
 
 
-async def test_spam_is_discarded_and_scam_is_kept_with_risk(
+async def test_fallback_only_spam_goes_to_human_triage_and_scam_is_kept(
     env: dict[str, Any], fake_llm: FakeLLM
 ) -> None:
     fake_llm.script(
@@ -329,8 +329,32 @@ async def test_spam_is_discarded_and_scam_is_kept_with_risk(
     )
     spam, scam = item(1), item(2)
     outcomes = await run([spam, scam])
-    assert {o.item_id: o.status for o in outcomes} == {spam.id: "discarded", scam.id: "triaged"}
+    # M12 / NFR-03: a self-reported fallback spam verdict is never terminal.
+    assert {o.item_id: o.status for o in outcomes} == {
+        spam.id: "needs_human_triage",
+        scam.id: "triaged",
+    }
+    assert spam.risk == "spam"
     assert scam.risk == "scam_or_phishing"
+
+
+async def test_fallback_spam_discards_when_laya_shadow_agrees(
+    env: dict[str, Any], fake_llm: FakeLLM
+) -> None:
+    """M12: Laya (shadow answer) agreeing at the threshold makes the discard legitimate."""
+    env["laya"] = FakeLayaClient([laya_answers(risk="spam", risk_conf=0.95)])
+    fake_llm.script("classify", llm_reply(risk="spam", risk_conf=0.9))
+    it = item()
+    assert (await run([it]))[0].status == "discarded"
+
+
+async def test_fallback_spam_parks_when_laya_shadow_below_threshold(
+    env: dict[str, Any], fake_llm: FakeLLM
+) -> None:
+    env["laya"] = FakeLayaClient([laya_answers(risk="spam", risk_conf=0.6)])
+    fake_llm.script("classify", llm_reply(risk="spam", risk_conf=0.9))
+    it = item()
+    assert (await run([it]))[0].status == "needs_human_triage"
 
 
 async def test_items_not_awaiting_triage_are_left_alone(

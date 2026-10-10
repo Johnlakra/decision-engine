@@ -210,9 +210,25 @@ def _routed_niche(work: _Work, registry: NicheRegistry) -> NicheConfig:
     return cfg if cfg is not None and cfg.enabled else generic or next(iter(registry.enabled()))
 
 
-def _discard_reason(work: _Work, niche: NicheConfig) -> str | None:
+def _is_spam(answer: Answer | None) -> bool:
+    return bool(
+        answer and answer.choice == "spam" and (answer.confidence or 0) >= SPAM_DISCARD_CONFIDENCE
+    )
+
+
+def _spam_needs_review(work: _Work) -> bool:
+    """A spam verdict backed only by the LLM fallback's self-reported confidence (NFR-03).
+
+    Terminal discard needs Laya to agree: a Laya-sourced answer (mode on) or its shadow answer.
+    """
     risk = work.answers.get(RISK)
-    if risk and risk.choice == "spam" and (risk.confidence or 0) >= SPAM_DISCARD_CONFIDENCE:
+    if not _is_spam(risk) or (risk and risk.source == "laya"):
+        return False
+    return not _is_spam(work.shadow.get(RISK))
+
+
+def _discard_reason(work: _Work, niche: NicheConfig) -> str | None:
+    if _is_spam(work.answers.get(RISK)):
         return "spam"
     for rule in niche.triage.discard_if:
         answer = work.answers.get(rule.question)
@@ -269,6 +285,9 @@ def _finalise(work: _Work, registry: NicheRegistry) -> str:
     item.urgency = urgency.level if urgency and urgency.level is not None else None
     item.risk = risk.choice if risk and risk.choice in Risk.values() else None
     item.triage = _record(work).model_dump(mode="json")
+    if _spam_needs_review(work):
+        transition(item, ItemStatus.NEEDS_HUMAN_TRIAGE)
+        return item.status
     reason = _discard_reason(work, niche)
     transition(item, ItemStatus.DISCARDED if reason else ItemStatus.TRIAGED)
     return item.status
