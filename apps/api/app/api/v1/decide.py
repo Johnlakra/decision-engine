@@ -15,7 +15,7 @@ from app.core.config import get_settings
 from app.core.errors import ProblemError
 from app.graph import oneshot
 from app.llm.errors import LLMUnavailable, NoPrivateProvider
-from app.schemas.triage import Answer
+from app.schemas.triage import Answer, ShadowRecord
 from app.security.api_keys import Principal
 from app.triage import service as triage_service
 
@@ -71,6 +71,7 @@ class DecideOut(BaseModel):
     fallback: bool
     decision: dict[str, Any] | None = None
     explanation: str | None = None
+    shadow: ShadowRecord | None = None  # Laya output in shadow mode; never the answer
 
 
 @router.post(
@@ -123,4 +124,5 @@ async def decide(body: DecideIn, principal: Caller) -> DecideOut:
         fallback=result.fallback,
         decision=result.decision,
         explanation=result.explanation,
+        shadow=result.shadow,
     )

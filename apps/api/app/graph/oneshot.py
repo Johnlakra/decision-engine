@@ -1,8 +1,10 @@
 """One-shot decisions for ``POST /v1/decide`` (FR-35, FR-96).
 
 One Laya call (the LLM fallback for questions Laya cannot answer), then optionally the niche's
-extract, tools, decide and policy steps with no checkpointer and no item rows. Laya mode does not
-gate this path: the caller asked for Laya answers. LLM errors propagate (``LLMUnavailable``,
+extract, tools, decide and policy steps with no checkpointer and no item rows. Laya mode applies
+here as in triage (FR-23, CLAUDE.md): in ``shadow`` (the default) and ``off`` the answers come from
+the LLM fallback and any Laya output is reported only as ``shadow``; in ``on`` Laya answers below
+the confidence gate (FR-22) fall back to the LLM. LLM errors propagate (``LLMUnavailable``,
 ``NoPrivateProvider``).
 """
 
@@ -11,6 +13,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from app.core.config import get_settings
 from app.graph import store
 from app.graph.nodes.decide import make_decision
 from app.graph.nodes.extract import extract_entities
@@ -23,11 +26,12 @@ from app.llm.errors import LLMUnavailable, NoPrivateProvider
 from app.llm.fence import fence
 from app.niches.models import NicheConfig
 from app.niches.registry import get_registry
-from app.schemas.triage import Answer
+from app.schemas.triage import Answer, ShadowRecord
 from app.security.untrusted import as_data
 from app.triage.answers import parse_laya_result
 from app.triage.fallback import FallbackUnavailable, classify
 from app.triage.laya_client import LayaClient
+from app.triage.modes import Mode, resolve_mode
 from app.triage.questions import QuestionError, validate_questions
 
 log = logging.getLogger(__name__)
@@ -35,6 +39,7 @@ log = logging.getLogger(__name__)
 MAX_QUESTIONS = 16
 EXPLAIN_PURPOSE = "decide"
 ONESHOT_ID = "oneshot"
+DEFAULT_MIN_CONFIDENCE = 0.75  # the niche-less gate, same as Triage.min_confidence's default
 ONESHOT_WARNING = "one-shot: no scam screening"
 EXPLAIN_RULES = (
     "Explain in at most 3 short sentences why the answers below fit the situation. Use only "
@@ -56,6 +61,7 @@ class OneShotResult:
     fallback: bool
     decision: dict[str, Any] | None = None
     explanation: str | None = None
+    shadow: ShadowRecord | None = None
 
 
 def state_text(state: str | dict[str, Any] | list[Any]) -> str:
@@ -93,27 +99,39 @@ async def _laya(
     return results[0] if len(results) == 1 else None
 
 
+def _gated(answers: dict[str, Answer], gate: float) -> dict[str, Answer]:
+    return {qid: a for qid, a in answers.items() if (a.confidence or 0.0) >= gate}
+
+
 async def _answers(
     laya: LayaClient | None,
     text: str,
     questions: dict[str, Any],
     *,
+    mode: Mode,
+    gate: float,
     sensitivity: Sensitivity,
     language: str,
-) -> tuple[dict[str, Answer], str | None, bool]:
-    result = await _laya(laya, text, questions)
-    answers = parse_laya_result(questions, result)
-    model = str(result["model"]) if result and answers and result.get("model") else None
+) -> tuple[dict[str, Answer], str | None, bool, ShadowRecord | None]:
+    """Answers, the Laya model that gave them, fallback used, and shadow Laya output."""
+    result = await _laya(laya, text, questions) if mode != "off" else None
+    parsed = parse_laya_result(questions, result)
+    laya_model = str(result["model"]) if result and parsed and result.get("model") else None
+    shadow = None
+    if mode == "shadow" and parsed:
+        shadow = ShadowRecord(answers=parsed, model=laya_model)
+    answers = _gated(parsed, gate) if mode == "on" else {}
+    model = laya_model if answers else None
     missing = {qid: spec for qid, spec in questions.items() if qid not in answers}
     if not missing:
-        return answers, model, False
+        return answers, model, False, shadow
     try:
         answers.update(await classify(text, missing, sensitivity=sensitivity, language=language))
     except FallbackUnavailable as exc:
         if isinstance(exc.__cause__, NoPrivateProvider):
             raise NoPrivateProvider(str(exc.__cause__)) from exc
         raise LLMUnavailable("no model could answer the questions") from exc
-    return {qid: answers[qid] for qid in questions}, model, True
+    return {qid: answers[qid] for qid in questions}, model, True, shadow
 
 
 async def _niche_decision(
@@ -198,8 +216,10 @@ async def decide_oneshot(
     niche_cfg = _enabled_niche(niche) if niche else None
     text = state_text(state)
     effective = effective_sensitivity(sensitivity, niche_cfg) if niche_cfg else sensitivity
-    answers, model, fallback = await _answers(
-        laya, text, questions, sensitivity=effective, language=language
+    mode = resolve_mode({}, niche, get_settings().laya_mode)
+    gate = niche_cfg.triage.min_confidence if niche_cfg else DEFAULT_MIN_CONFIDENCE
+    answers, model, fallback, shadow = await _answers(
+        laya, text, questions, mode=mode, gate=gate, sensitivity=effective, language=language
     )
     decision = None
     if niche_cfg is not None:
@@ -209,7 +229,9 @@ async def decide_oneshot(
     explanation = None
     if explain:
         explanation = await _explain(text, answers, sensitivity=effective, language=language)
-    return OneShotResult(answers, model, fallback, decision=decision, explanation=explanation)
+    return OneShotResult(
+        answers, model, fallback, decision=decision, explanation=explanation, shadow=shadow
+    )
 
 
 __all__ = ["InvalidRequest", "MAX_QUESTIONS", "OneShotResult", "decide_oneshot", "state_text"]

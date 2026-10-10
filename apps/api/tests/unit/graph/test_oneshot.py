@@ -1,6 +1,7 @@
 """One-shot decisions for POST /v1/decide: no DB writes, no checkpointer (FR-35, FR-96)."""
 
 import json
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -30,6 +31,16 @@ def niches(monkeypatch: pytest.MonkeyPatch) -> NicheRegistry:
     registry.reload()
     monkeypatch.setattr(reg_mod, "_registry", registry)
     return registry
+
+
+def set_mode(monkeypatch: pytest.MonkeyPatch, mode: str) -> None:
+    monkeypatch.setattr(oneshot, "get_settings", lambda: SimpleNamespace(laya_mode=mode))
+
+
+@pytest.fixture(autouse=True)
+def laya_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Most tests exercise the calibrated `on` path; shadow/off have their own tests."""
+    set_mode(monkeypatch, "on")
 
 
 @pytest.fixture(autouse=True)
@@ -76,12 +87,45 @@ async def test_laya_answers_need_no_llm_call(fake_llm: FakeLLM) -> None:
     assert result.decision is None and result.explanation is None
 
 
-async def test_low_confidence_laya_answer_is_still_returned(fake_llm: FakeLLM) -> None:
+async def test_low_confidence_laya_answer_goes_to_fallback_in_on_mode(fake_llm: FakeLLM) -> None:
+    # FR-22: the confidence gate applies on this path too
+    fake_llm.script("classify", {"sell": {"choice": "A", "confidence": 0.9}})
     low = {"sell": {"type": "choice", "choice": "B", "probabilities": {}, "confidence": 0.2}}
 
     result = await run(FakeLayaClient([low]))
 
-    assert result.answers["sell"].choice == "B" and result.fallback is False
+    assert result.answers["sell"].choice == "A" and result.answers["sell"].source == "llm_fallback"
+    assert result.fallback is True
+
+
+async def test_default_shadow_mode_answers_from_fallback_and_reports_laya_as_shadow(
+    fake_llm: FakeLLM, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # CLAUDE.md: Laya is shadow by default; `on` only by calibration
+    set_mode(monkeypatch, "shadow")
+    fake_llm.script("classify", {"sell": {"choice": "B", "confidence": 0.8}})
+    laya = FakeLayaClient()
+
+    result = await run(laya)
+
+    assert result.answers["sell"].source == "llm_fallback" and result.answers["sell"].choice == "B"
+    assert result.fallback is True and result.model is None
+    assert result.shadow is not None and result.shadow.model == "english"
+    assert result.shadow.answers is not None
+    assert result.shadow.answers["sell"].source == "laya" and len(laya.calls) == 1
+
+
+async def test_off_mode_never_calls_laya(
+    fake_llm: FakeLLM, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    set_mode(monkeypatch, "off")
+    fake_llm.script("classify", {"sell": {"choice": "B", "confidence": 0.8}})
+    laya = FakeLayaClient()
+
+    result = await run(laya)
+
+    assert laya.calls == [] and result.shadow is None
+    assert result.answers["sell"].source == "llm_fallback"
 
 
 async def test_laya_down_uses_llm_fallback(fake_llm: FakeLLM) -> None:

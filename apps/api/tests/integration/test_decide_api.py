@@ -1,5 +1,6 @@
 """POST /v1/decide against the ASGI app (FR-35, FR-96)."""
 
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.triage.service as triage_service
 from app.core.config import get_settings
+from app.graph import oneshot
 from app.models import ActionLog, Decision, Feedback, Item, Job
 from app.security.api_keys import create_api_key
 from tests.fakes.fake_laya import FakeLayaClient
@@ -32,8 +34,9 @@ QUESTIONS = {
 }
 
 
-def use_laya(monkeypatch: pytest.MonkeyPatch, client: Any) -> Any:
+def use_laya(monkeypatch: pytest.MonkeyPatch, client: Any, mode: str = "on") -> Any:
     monkeypatch.setattr(triage_service, "get_laya_client", lambda: client)
+    monkeypatch.setattr(oneshot, "get_settings", lambda: SimpleNamespace(laya_mode=mode))
     return client
 
 
@@ -208,3 +211,20 @@ async def test_requires_decide_scope(
     allowed = await post(mini_client, caller, {"state": "x", "questions": QUESTIONS})
 
     assert (denied.status_code, allowed.status_code) == (403, 200)
+
+
+async def test_default_shadow_mode_reports_laya_only_as_shadow(
+    mini_client: httpx.AsyncClient,  # noqa: F811
+    admin_key: str,
+    fake_llm: FakeLLM,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    use_laya(monkeypatch, FakeLayaClient(), mode="shadow")
+    fake_llm.script("classify", {"sell": {"choice": "B", "confidence": 0.7}})
+
+    response = await post(mini_client, admin_key, {"state": "wheat", "questions": QUESTIONS})
+
+    body = response.json()
+    assert response.status_code == 200, response.text
+    assert body["fallback"] is True and body["answers"]["sell"]["source"] == "llm_fallback"
+    assert body["shadow"]["answers"]["sell"]["source"] == "laya"
