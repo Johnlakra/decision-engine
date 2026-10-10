@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.graph.sensitivity import effective_sensitivity
 from app.integrations import events
 from app.models import Item
 from app.models.enums import ItemStatus, Risk
@@ -167,18 +168,25 @@ def _plan(
 
 
 async def _run_fallback(
-    work: _Work, questions: dict[str, Any], pending: list[str], sem: asyncio.Semaphore
+    work: _Work,
+    questions: dict[str, Any],
+    pending: list[str],
+    sem: asyncio.Semaphore,
+    niche: NicheConfig | None = None,
 ) -> None:
     if not pending or work.error:
         return
     subset = {qid: questions[qid] for qid in pending}
+    sensitivity = (
+        effective_sensitivity(work.item.sensitivity, niche) if niche else work.item.sensitivity
+    )
     started = time.perf_counter()
     async with sem:
         try:
             answers = await classify(
                 work.state,
                 subset,
-                sensitivity=work.item.sensitivity,  # type: ignore[arg-type]
+                sensitivity=sensitivity,  # type: ignore[arg-type]
                 item_id=str(work.item.id),
                 language=work.item.language or "en",
             )
@@ -335,7 +343,7 @@ async def _phase_niche(
         routed = _routed_niche(work, registry)
         if routed.triage.questions:
             groups[routed.name].append(work)
-    plans: list[tuple[_Work, dict[str, Any], list[str]]] = []
+    plans: list[tuple[_Work, dict[str, Any], list[str], NicheConfig]] = []
     for name, members in groups.items():
         cfg = registry.get(name)
         if cfg is None:
@@ -354,9 +362,9 @@ async def _phase_niche(
             if id(work) in results:
                 _record_laya(work, result)
             plans.append(
-                (work, questions, _plan(work, questions, result, cfg.triage.min_confidence))
+                (work, questions, _plan(work, questions, result, cfg.triage.min_confidence), cfg)
             )
-    await asyncio.gather(*(_run_fallback(w, q, p, sem) for w, q, p in plans))
+    await asyncio.gather(*(_run_fallback(w, q, p, sem, c) for w, q, p, c in plans))
 
 
 def _content_state(item: Item) -> str:

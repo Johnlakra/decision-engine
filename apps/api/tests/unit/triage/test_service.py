@@ -46,7 +46,14 @@ class StubRegistry:
         return list(self._n.values())
 
 
+def make_private_niche(name: str, **triage: Any) -> NicheConfig:
+    data = make_niche(name, **triage).model_dump()
+    data["sensitivity"] = "private"
+    return NicheConfig.model_validate(data)
+
+
 REGISTRY = StubRegistry(
+    make_private_niche("vault", min_confidence=0.7, questions={"needs_reply": REPLY_Q}),
     make_niche("alpha", min_confidence=0.7),
     make_niche(
         "mail",
@@ -231,6 +238,22 @@ async def test_private_item_classified_with_private_sensitivity(
     fake_llm.script("classify", llm_reply())
     await run([item(sensitivity="private")])
     assert fake_llm.calls_for("classify")[0].sensitivity == "private"
+
+
+async def test_public_item_in_private_niche_niche_questions_use_private_llm(
+    env: dict[str, Any], fake_llm: FakeLLM
+) -> None:
+    """M1 / FR-31: niche questions of a private niche never reach a public provider."""
+    env["laya"] = FakeLayaClient([laya_answers("vault")])
+    fake_llm.script(
+        "classify",
+        llm_reply("vault"),
+        {"needs_reply": {"choice": "A", "confidence": 0.9}},
+    )
+    await run([item(sensitivity="public")])
+    calls = fake_llm.calls_for("classify")
+    assert calls[0].sensitivity == "public"  # core call: item is public, niche not yet known
+    assert calls[1].sensitivity == "private"
 
 
 async def test_hinted_niche_sets_hint_source_and_asks_niche_questions_in_same_call(
