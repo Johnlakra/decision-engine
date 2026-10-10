@@ -11,6 +11,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.decide_out_answers import DecideOutAnswers
     from ..models.decide_out_decision_type_0 import DecideOutDecisionType0
+    from ..models.shadow_record import ShadowRecord
 
 
 T = TypeVar("T", bound="DecideOut")
@@ -25,6 +26,7 @@ class DecideOut:
         decision (DecideOutDecisionType0 | None | Unset):
         explanation (None | str | Unset):
         model (None | str | Unset):
+        shadow (None | ShadowRecord | Unset):
     """
 
     answers: DecideOutAnswers
@@ -32,10 +34,12 @@ class DecideOut:
     decision: DecideOutDecisionType0 | None | Unset = UNSET
     explanation: None | str | Unset = UNSET
     model: None | str | Unset = UNSET
+    shadow: None | ShadowRecord | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.decide_out_decision_type_0 import DecideOutDecisionType0  # noqa: PLC0415
+        from ..models.shadow_record import ShadowRecord  # noqa: PLC0415
 
         answers = self.answers.to_dict()
 
@@ -61,6 +65,14 @@ class DecideOut:
         else:
             model = self.model
 
+        shadow: dict[str, Any] | None | Unset
+        if isinstance(self.shadow, Unset):
+            shadow = UNSET
+        elif isinstance(self.shadow, ShadowRecord):
+            shadow = self.shadow.to_dict()
+        else:
+            shadow = self.shadow
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -75,6 +87,8 @@ class DecideOut:
             field_dict["explanation"] = explanation
         if model is not UNSET:
             field_dict["model"] = model
+        if shadow is not UNSET:
+            field_dict["shadow"] = shadow
 
         return field_dict
 
@@ -82,6 +96,7 @@ class DecideOut:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decide_out_answers import DecideOutAnswers  # noqa: PLC0415
         from ..models.decide_out_decision_type_0 import DecideOutDecisionType0  # noqa: PLC0415
+        from ..models.shadow_record import ShadowRecord  # noqa: PLC0415
 
         d = dict(src_dict)
         answers = DecideOutAnswers.from_dict(d.pop("answers"))
@@ -123,12 +138,30 @@ class DecideOut:
 
         model = _parse_model(d.pop("model", UNSET))
 
+        def _parse_shadow(data: object) -> None | ShadowRecord | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                shadow_type_0 = ShadowRecord.from_dict(data)
+
+                return shadow_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | ShadowRecord | Unset, data)
+
+        shadow = _parse_shadow(d.pop("shadow", UNSET))
+
         decide_out = cls(
             answers=answers,
             fallback=fallback,
             decision=decision,
             explanation=explanation,
             model=model,
+            shadow=shadow,
         )
 
         decide_out.additional_properties = d

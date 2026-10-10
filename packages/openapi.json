@@ -296,6 +296,16 @@
               }
             ],
             "title": "Model"
+          },
+          "shadow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShadowRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -306,7 +316,7 @@
         "type": "object"
       },
       "DecisionIn": {
-        "description": "Body of ``POST /v1/items/{id}/decision`` (API.md).",
+        "description": "Body of ``POST /v1/items/{id}/decision`` (API.md).\n\nThe \"snooze_until is in the future\" rule is an API-layer check (``api/v1/decisions.py``): the\ngraph re-validates this model on a resume replay, long after the time may have passed.",
         "properties": {
           "edits": {
             "anyOf": [
@@ -1072,6 +1082,59 @@
         "title": "ReloadResponse",
         "type": "object"
       },
+      "ShadowRecord": {
+        "properties": {
+          "answers": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/Answer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answers"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "title": "ShadowRecord",
+        "type": "object"
+      },
       "SubscriptionIn": {
         "examples": [
           {
@@ -1335,6 +1398,9 @@
           },
           "422": {
             "description": "Invalid questions, unknown or disabled niche"
+          },
+          "429": {
+            "description": "Rate limit or daily decide cap; see Retry-After"
           },
           "503": {
             "description": "No model could answer, or private with no private_ok provider"

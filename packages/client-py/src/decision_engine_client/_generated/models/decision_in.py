@@ -21,12 +21,15 @@ T = TypeVar("T", bound="DecisionIn")
 class DecisionIn:
     """Body of ``POST /v1/items/{id}/decision`` (API.md).
 
-    Attributes:
-        verdict (Verdict):
-        edits (DecisionInEditsType0 | None | Unset):
-        note (None | str | Unset):
-        option (None | str | Unset):
-        snooze_until (datetime.datetime | None | Unset):
+    The "snooze_until is in the future" rule is an API-layer check (``api/v1/decisions.py``): the
+    graph re-validates this model on a resume replay, long after the time may have passed.
+
+        Attributes:
+            verdict (Verdict):
+            edits (DecisionInEditsType0 | None | Unset):
+            note (None | str | Unset):
+            option (None | str | Unset):
+            snooze_until (datetime.datetime | None | Unset):
     """
 
     verdict: Verdict

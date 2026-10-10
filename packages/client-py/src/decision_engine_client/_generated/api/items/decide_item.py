@@ -81,6 +81,10 @@ def sync_detailed(
         item_id (UUID):
         body (DecisionIn): Body of ``POST /v1/items/{id}/decision`` (API.md).
 
+            The "snooze_until is in the future" rule is an API-layer check (``api/v1/decisions.py``):
+            the
+            graph re-validates this model on a resume replay, long after the time may have passed.
+
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
@@ -113,6 +117,10 @@ def sync(
         item_id (UUID):
         body (DecisionIn): Body of ``POST /v1/items/{id}/decision`` (API.md).
 
+            The "snooze_until is in the future" rule is an API-layer check (``api/v1/decisions.py``):
+            the
+            graph re-validates this model on a resume replay, long after the time may have passed.
+
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
@@ -139,6 +147,10 @@ async def asyncio_detailed(
     Args:
         item_id (UUID):
         body (DecisionIn): Body of ``POST /v1/items/{id}/decision`` (API.md).
+
+            The "snooze_until is in the future" rule is an API-layer check (``api/v1/decisions.py``):
+            the
+            graph re-validates this model on a resume replay, long after the time may have passed.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -169,6 +181,10 @@ async def asyncio(
     Args:
         item_id (UUID):
         body (DecisionIn): Body of ``POST /v1/items/{id}/decision`` (API.md).
+
+            The "snooze_until is in the future" rule is an API-layer check (``api/v1/decisions.py``):
+            the
+            graph re-validates this model on a resume replay, long after the time may have passed.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

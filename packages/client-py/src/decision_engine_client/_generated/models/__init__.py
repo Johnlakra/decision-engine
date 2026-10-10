@@ -40,6 +40,8 @@ from .normalised_content_attachments_item import NormalisedContentAttachmentsIte
 from .normalised_content_entities import NormalisedContentEntities
 from .reload_response import ReloadResponse
 from .reload_response_errors_item import ReloadResponseErrorsItem
+from .shadow_record import ShadowRecord
+from .shadow_record_answers_type_0 import ShadowRecordAnswersType0
 from .subscription_in import SubscriptionIn
 from .subscription_list import SubscriptionList
 from .subscription_out import SubscriptionOut
@@ -88,6 +90,8 @@ __all__ = (
     "NormalisedContentEntities",
     "ReloadResponse",
     "ReloadResponseErrorsItem",
+    "ShadowRecord",
+    "ShadowRecordAnswersType0",
     "SubscriptionIn",
     "SubscriptionList",
     "SubscriptionOut",

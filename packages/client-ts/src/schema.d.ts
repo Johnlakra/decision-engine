@@ -327,10 +327,14 @@ export interface components {
             fallback: boolean;
             /** Model */
             model?: string | null;
+            shadow?: components["schemas"]["ShadowRecord"] | null;
         };
         /**
          * DecisionIn
          * @description Body of ``POST /v1/items/{id}/decision`` (API.md).
+         *
+         *     The "snooze_until is in the future" rule is an API-layer check (``api/v1/decisions.py``): the
+         *     graph re-validates this model on a resume replay, long after the time may have passed.
          */
         DecisionIn: {
             /** Edits */
@@ -622,6 +626,19 @@ export interface components {
             /** Loaded */
             loaded: string[];
         };
+        /** ShadowRecord */
+        ShadowRecord: {
+            /** Answers */
+            answers?: {
+                [key: string]: components["schemas"]["Answer"];
+            } | null;
+            /** Error */
+            error?: string | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Model */
+            model?: string | null;
+        };
         /**
          * SubscriptionIn
          * @example {
@@ -808,6 +825,13 @@ export interface operations {
             };
             /** @description Invalid questions, unknown or disabled niche */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit or daily decide cap; see Retry-After */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
