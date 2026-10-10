@@ -7,13 +7,19 @@ import asyncio
 import json
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope
 from app.core.config import get_settings
-from app.core.errors import ProblemError
+from app.core.errors import PROBLEM_JSON, ProblemError
+from app.core.time import utcnow
+from app.db.decide_quota import try_consume_decide_call
+from app.db.session import get_session
 from app.graph import oneshot
+from app.ingest.service import seconds_until_utc_midnight
 from app.llm.errors import LLMUnavailable, NoPrivateProvider
 from app.schemas.triage import Answer, ShadowRecord
 from app.security.api_keys import Principal
@@ -23,6 +29,7 @@ router = APIRouter(prefix="/decide", tags=["decide"])
 
 PROBLEM_BASE = "https://decision-engine/problems/"
 MAX_STATE_CHARS = 20_000
+DAILY_CAP_TYPE = PROBLEM_BASE + "daily-decide-cap"
 Caller = Annotated[Principal, Depends(require_scope("decide"))]
 
 
@@ -74,6 +81,23 @@ class DecideOut(BaseModel):
     shadow: ShadowRecord | None = None  # Laya output in shadow mode; never the answer
 
 
+def _cap_response(request: Request) -> JSONResponse:
+    """429 problem+json, same shape as the item cap (resets at 00:00 UTC)."""
+    body = {
+        "type": DAILY_CAP_TYPE,
+        "title": "Daily decide cap reached",
+        "status": 429,
+        "detail": "This tenant reached its daily /v1/decide limit; it resets at 00:00 UTC",
+        "instance": request.url.path,
+    }
+    return JSONResponse(
+        body,
+        status_code=429,
+        media_type=PROBLEM_JSON,
+        headers={"Retry-After": str(seconds_until_utc_midnight(utcnow()))},
+    )
+
+
 @router.post(
     "",
     response_model=DecideOut,
@@ -81,13 +105,24 @@ class DecideOut(BaseModel):
     summary="Synchronous decision",
     operation_id="decide_sync",
     responses={
+        429: {"description": "Rate limit or daily decide cap; see Retry-After"},
         422: {"description": "Invalid questions, unknown or disabled niche"},
         503: {"description": "No model could answer, or private with no private_ok provider"},
         504: {"description": "Timed out after DECIDE_TIMEOUT_SECONDS"},
     },
 )
-async def decide(body: DecideIn, principal: Caller) -> DecideOut:
-    timeout = get_settings().decide_timeout_seconds
+async def decide(
+    body: DecideIn,
+    request: Request,
+    principal: Caller,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DecideOut | JSONResponse:
+    settings = get_settings()
+    if not await try_consume_decide_call(
+        session, principal.tenant_id, settings.decide_daily_limit_per_tenant
+    ):
+        return _cap_response(request)
+    timeout = settings.decide_timeout_seconds
     try:
         async with asyncio.timeout(timeout):
             result = await oneshot.decide_oneshot(

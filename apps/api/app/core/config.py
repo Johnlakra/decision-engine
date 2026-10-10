@@ -41,6 +41,7 @@ class Settings(BaseSettings):
 
     data_dir: Path = REPO_ROOT / "data"  # uploads, exports, eval sets (empty = default)
     items_per_day: int = 5000  # per-tenant cap on new items per UTC day (ADR 0004)
+    decide_daily_limit_per_tenant: int = 500  # per-tenant POST /v1/decide calls per UTC day (429)
     max_request_bytes: int = 1_048_576  # max request body in bytes (413 above)
     max_bulk_request_bytes: int = 10_485_760  # max body for POST /v1/items/bulk (413 above)
 

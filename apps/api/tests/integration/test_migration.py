@@ -16,7 +16,7 @@ pytestmark = pytest.mark.integration
 EXPECTED_TABLES = {
     "tenants", "tenant_settings", "api_keys", "sources", "items", "jobs", "niches",
     "decisions", "feedback", "llm_usage", "actions_log", "webhook_subscriptions",
-    "webhook_deliveries",
+    "webhook_deliveries", "decide_usage",
 }  # fmt: skip
 
 
