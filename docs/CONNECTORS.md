@@ -17,6 +17,25 @@ shown in UI, tests with recorded fixtures (`tests/fixtures/<connector>/`), never
 | `voice` | 7 | via telegram/mobile upload | private | Sarvam STT → text; keep audio ref, delete audio after `AUDIO_RETENTION_DAYS` (7) |
 | `whatsapp`, `outlook`, `slack`, `calendar` | later | — | — | WhatsApp Cloud API needs a business number and template rules |
 
+## Feed polling (Phase 2, built)
+- Source types `rss` (RSS 2.0 + Atom), `google_news` (India-edition search, `config.query`) and `hn`
+  (Hacker News via Algolia, `config.min_points`). Pure parsers in `app/connectors/feed_parse.py` and
+  `hn.py`; poll URLs in `feed_urls.py`. Fetches are HTTPS-only, SSRF-checked, size-capped, and never
+  follow redirects (update the catalog URL when a feed moves).
+- Load starter catalogs: `python -m scripts.load_feeds` (reads `data/feeds/*.yaml`).
+- Enqueue due polls: `python -m app.connectors.schedule` (run every 5 min from cron). The worker
+  runs the `poll` job; a source is due after 15 min and never gets two open poll jobs.
+- Items are `source=rss`, `source_ref` = feed guid or link, `hints.niche` = the source's niche hint.
+
+## Telegram notifier (Phase 2, built)
+- `python -m app.connectors.notify` (every 5 min; `scheduler` service in docker-compose.yml) sends
+  urgent pings (`urgency >= 2`, awaiting approval) to every `TELEGRAM_ALLOWED_CHAT_IDS` chat, with
+  approve and reject buttons. Each item is pinged once (`items.notified_at`).
+- One digest per local day at the digest hour (`items.digested_at`), listing what still waits.
+- Settings live in `tenant_settings.settings`: `quiet_hours` ([22, 7] default, wraps midnight),
+  `digest_hour` (8), `ping_cap_per_day` (3). Invalid values fall back to the defaults.
+- A failed send leaves the item unmarked, so the next run retries it.
+
 ## Gmail
 - OAuth 2.0 web flow; scopes start with `gmail.readonly`; add `gmail.modify` (labels/archive) and `gmail.compose`
   (drafts) only when those actions are enabled. These are **restricted scopes**: keep the Google Cloud app in

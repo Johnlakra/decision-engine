@@ -47,14 +47,18 @@ received by a test server; worker crash mid-graph resumes from checkpoint; Laya 
 no item lost (integration test).
 
 ## Phase 2 — News radar niche + Telegram (weeks 3–4)
+Status (uncommitted, 2026-10-14): code and tests in the working tree; acceptance not run yet.
+Open: 2.1 cron for `python -m app.connectors.schedule`; 2.2 `news_radar` still `enabled: false`
+and pgvector dedupe not built; 2.4 notifier pass built and scheduled in compose, but not yet run against a real chat; 2.5 radar side
+not wired; 2.6 needs real feedback rows before it prints numbers. Tick `[x]` with the commit hash.
 Goal: daily AI/crypto/news keep-or-skip with a Telegram digest; Opportunity Radar can plug in.
 
-- [ ] 2.1 RSS/Atom, Google News query, Hacker News connectors as pollers (FR-90) — **connector-builder**
-- [ ] 2.2 `news_radar` niche: Laya `keep` question per topic, interest profile from tenant settings, LLM summary only for keeps, dedupe by pgvector (FR-15) — **niche-designer** + **laya-integrator**
-- [ ] 2.3 Starter feed lists per topic (ai, crypto, india_tech, punjab_agri_policy) — **feed-scout**
-- [ ] 2.4 Telegram bot: input (forward → item), notifier (urgent ping, daily digest, approve/reject buttons) (FR-43, FR-94) — **connector-builder**
-- [ ] 2.5 Opportunity Radar bridge: docs + example `radar_bridge.py` posting to `/v1/items` with `hints.niche=news_radar`; shared Laya service (FR-96) — **integration-builder**
-- [ ] 2.6 Shadow report `python -m app.feedback.shadow_report` (FR-81) — **laya-integrator**
+- [~] 2.1 RSS/Atom, Google News query, Hacker News connectors as pollers (FR-90) — **connector-builder**
+- [~] 2.2 `news_radar` niche: Laya `keep` question per topic, interest profile from tenant settings, LLM summary only for keeps, dedupe by pgvector (FR-15) — **niche-designer** + **laya-integrator**
+- [~] 2.3 Starter feed lists per topic (ai, crypto, india_tech, punjab_agri_policy) — **feed-scout**
+- [~] 2.4 Telegram bot: input (forward → item), notifier (urgent ping, daily digest, approve/reject buttons) (FR-43, FR-94) — **connector-builder**
+- [~] 2.5 Opportunity Radar bridge: docs + example `radar_bridge.py` posting to `/v1/items` with `hints.niche=news_radar`; shared Laya service (FR-96) — **integration-builder**
+- [~] 2.6 Shadow report `python -m app.feedback.shadow_report` (FR-81) — **laya-integrator**
 
 **Acceptance**: 24 h run on 10 feeds produces ≤ 15 kept stories, a digest at the set hour, buttons work;
 shadow report prints per-cutoff missed/skipped table.

@@ -120,6 +120,7 @@ also accept `"acting"`, reserved for long-running actions in later phases.
 - `GET/POST /v1/sources` `{type: "rss"|"gmail"|"instagram"|"webhook"|"telegram"|…, name, config, niche_hint?, enabled}`
 - `GET /v1/sources/{id}/oauth/start` → redirect (gmail, instagram); `/oauth/callback`
 - `POST /v1/webhooks/{source_slug}` — inbound; header `X-DE-Signature: t=<unix>,v1=<hex hmac_sha256(secret, t + "." + body)>` (FR-91); provider-native verification for Meta (`X-Hub-Signature-256`) and Telegram (secret token header)
+- `POST /v1/telegram/webhook` — Telegram Bot API updates (FR-94). Auth is the header `X-Telegram-Bot-Api-Secret-Token`, which must equal `TELEGRAM_WEBHOOK_SECRET` (403 otherwise). Only chats in `TELEGRAM_ALLOWED_CHAT_IDS` are used; others are ignored and logged. Forwarded text becomes a private `telegram` item; button presses `de:a:<id>` (approve, recommended option) and `de:r:<id>` (reject) resume the item. Always 200 for a valid update.
 
 ## Outbound webhooks (FR-42)
 - `GET/POST/DELETE /v1/subscriptions` `{url, events: ["decision.ready","decision.made","action.done","item.triaged"], secret}`
