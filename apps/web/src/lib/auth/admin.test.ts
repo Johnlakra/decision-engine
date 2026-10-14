@@ -25,6 +25,12 @@ describe("canProxy", () => {
     expect(canProxy("PUT", ["settings"], "boss@example.com", admins)).toBe(true);
   });
 
+  it("lets only admins write niches", () => {
+    expect(canProxy("PUT", ["niches", "inbox"], "user@example.com", admins)).toBe(false);
+    expect(canProxy("PUT", ["niches", "inbox"], "boss@example.com", admins)).toBe(true);
+    expect(canProxy("GET", ["niches", "inbox"], "user@example.com", admins)).toBe(true);
+  });
+
   it("leaves reads and other writes to every signed-in user", () => {
     expect(canProxy("GET", ["settings"], "user@example.com", admins)).toBe(true);
     expect(canProxy("POST", ["items", "x", "decision"], "user@example.com", admins)).toBe(true);

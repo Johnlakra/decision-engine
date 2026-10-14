@@ -2,9 +2,12 @@
  * Which API calls the browser may make through the server proxy. Anything not listed is refused,
  * so the proxy can never be used as a general gateway to the Decision Engine API.
  */
+import { isNicheName } from "@/lib/niches/name";
 
 export const ALLOWED_LIST_PARAMS = ["status", "niche", "source", "q", "cursor", "limit"] as const;
 export const MAX_LIST_LIMIT = 100;
+/** `POST /v1/niches/reload` is not proxied, so its name must never be read as a niche. */
+const RESERVED_NICHE_NAMES: readonly string[] = ["reload"];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ProxyMethod = "GET" | "POST" | "PUT";
@@ -44,6 +47,21 @@ function only(method: string, allowed: ProxyMethod, plan: ProxyPlan): ProxyPlan 
   return method === allowed ? plan : { ok: false, status: 405 };
 }
 
+function planNiches(method: string, segments: readonly string[]): ProxyPlan {
+  if (segments.length === 1) {
+    return only(method, "GET", { ok: true, method: "GET", path: "/v1/niches", search: "" });
+  }
+  const name = segments[1];
+  const isSlug = name !== undefined && isNicheName(name) && !RESERVED_NICHE_NAMES.includes(name);
+  if (segments.length !== 2 || !isSlug) {
+    return { ok: false, status: 404 };
+  }
+  const path = `/v1/niches/${name}`;
+  return method === "GET" || method === "PUT"
+    ? { ok: true, method, path, search: "" }
+    : { ok: false, status: 405 };
+}
+
 export function planProxy(
   method: string,
   segments: readonly string[],
@@ -55,6 +73,9 @@ export function planProxy(
     return method === "GET" || method === "PUT"
       ? { ok: true, method, path, search: "" }
       : { ok: false, status: 405 };
+  }
+  if (resource === "niches") {
+    return planNiches(method, segments);
   }
   if (resource !== "items" || rest.length > 0) {
     return { ok: false, status: 404 };

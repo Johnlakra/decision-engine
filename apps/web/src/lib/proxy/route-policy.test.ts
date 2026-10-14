@@ -90,6 +90,50 @@ describe("planProxy settings and activity", () => {
   });
 });
 
+describe("planProxy niches", () => {
+  it("allows GET on the list and drops any query", () => {
+    expect(planProxy("GET", ["niches"], new URLSearchParams("evil=1"))).toEqual({
+      ok: true,
+      method: "GET",
+      path: "/v1/niches",
+      search: "",
+    });
+  });
+
+  it("allows GET and PUT on one niche by slug", () => {
+    expect(planProxy("GET", ["niches", "inbox"], NONE)).toEqual({
+      ok: true,
+      method: "GET",
+      path: "/v1/niches/inbox",
+      search: "",
+    });
+    expect(planProxy("PUT", ["niches", "news_radar"], NONE)).toEqual({
+      ok: true,
+      method: "PUT",
+      path: "/v1/niches/news_radar",
+      search: "",
+    });
+  });
+
+  it("refuses names that are not lowercase slugs", () => {
+    for (const name of ["Inbox", "1inbox", "a", "../x", "in-box", "a".repeat(41), "in box"]) {
+      expect(planProxy("GET", ["niches", name], NONE)).toEqual({ ok: false, status: 404 });
+    }
+  });
+
+  it("never reaches the reload route", () => {
+    expect(planProxy("POST", ["niches", "reload"], NONE)).toEqual({ ok: false, status: 404 });
+    expect(planProxy("PUT", ["niches", "reload"], NONE)).toEqual({ ok: false, status: 404 });
+  });
+
+  it("answers 405 for other methods and 404 for sub-paths", () => {
+    expect(planProxy("POST", ["niches"], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("PUT", ["niches"], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("DELETE", ["niches", "inbox"], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("GET", ["niches", "inbox", "x"], NONE)).toEqual({ ok: false, status: 404 });
+  });
+});
+
 describe("listSearch", () => {
   it("drops empty values and clamps a bad limit to one", () => {
     expect(listSearch(new URLSearchParams("status=&limit=abc"))).toBe("?limit=1");
