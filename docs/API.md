@@ -171,8 +171,14 @@ below are the target contract. `triage/modes.resolve_mode` already reads the sto
   Every process sees it on its next unit of work.
   `422` problem+json `{"title": "Niche validation failed", "errors": [{"json_pointer", "message"}]}` (all schema errors,
   sorted, ≤ 20; nothing is saved) for: schema violations; `/name` ≠ path; `generic` with `/enabled` false; non-empty
-  `/steps`; unregistered `/actions/i` or `/tools/i`; `/auto_actions/i` not in `actions`; weakening the shipped YAML's
-  `expert_review.always` + `autonomy: ask` or `sensitivity: private`. Validation is server-side only (no dry-run route).
+  `/steps`; an unregistered `/actions/i` or `/tools/i` **that this PUT adds** relative to the effective config (stored
+  override, else YAML; a new DB-only niche checks every entry); an `/auto_actions/i` not in `actions` that this PUT added
+  or whose action it removed; weakening the shipped YAML's safety floor (a DB-only niche has none):
+  `expert_review.always: true` must stay true (`/expert_review/always`); non-empty `expert_review.when_topics` needs
+  `always: true` or a non-empty `when_topics` (`/expert_review`); either of those forces `autonomy: "ask"`
+  (`/autonomy`); `sensitivity: private` must stay private (`/sensitivity`) (ADR 0009 Amendment: floor covers
+  when_topics). Unchanged unregistered entries round-trip (ADR 0009 Amendment 2026-10-14). Validation is
+  server-side only (no dry-run route).
 - `POST /v1/niches/draft {"description": "decide which job offers to apply to"}` → draft config (not saved). NOT BUILT (LATER, 8.4).
 - `POST /v1/niches/reload` scope `admin`. Built: it reloads the YAML. The planned part is re-applying the DB overrides (ADR 0009).
 

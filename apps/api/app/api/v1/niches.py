@@ -143,7 +143,7 @@ async def put_niche(
 ) -> NicheDetail:
     registry = get_registry()
     await overrides.sync_registry(session, registry)
-    issues = validate_override(name, body, registry)
+    issues = validate_override(name, body, registry, registry.get(name))
     if issues:
         raise ProblemError(
             422,

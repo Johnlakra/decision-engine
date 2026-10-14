@@ -169,19 +169,78 @@ async def test_effective_config_round_trips_through_put(
 
 
 @pytest.mark.parametrize(
-    ("name", "pointer"),
-    [("inbox", "/actions/0"), ("news_radar", "/actions/2"), ("agriculture", "/actions/0")],
+    ("name", "field", "value"),
+    [
+        ("inbox", "autonomy", "ask"),
+        ("news_radar", "autonomy", "ask"),
+        ("agriculture", "description", "edited through the API"),
+    ],
 )
-async def test_shipped_niche_with_unbuilt_actions_is_refused_as_is(
-    client: httpx.AsyncClient,
-    admin: dict[str, str],
-    db_session: AsyncSession,
-    name: str,
-    pointer: str,
+async def test_shipped_niche_with_unbuilt_entries_round_trips_when_unchanged(
+    client: httpx.AsyncClient, admin: dict[str, str], name: str, field: str, value: str
 ) -> None:
+    # ADR 0009 amendment: registry checks apply to changed entries only
     config = await _effective(client, admin, name, only_registered=False)
-    errors = await _expect_422(client, admin, db_session, name, config)
-    assert pointer in [e["json_pointer"] for e in errors]
+    config[field] = value
+    config["actions"] = list(reversed(config["actions"]))  # order is ignored
+    resp = await _put(client, admin, name, config)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["config"][field] == value
+
+
+async def test_adding_unregistered_action_or_tool_is_refused_at_its_index(
+    client: httpx.AsyncClient, admin: dict[str, str], db_session: AsyncSession
+) -> None:
+    config = await _effective(client, admin, "agriculture", only_registered=False)
+    config["actions"] = [*config["actions"], "launch_missiles"]
+    config["tools"] = [*config["tools"], "nope.tool"]
+    errors = await _expect_422(client, admin, db_session, "agriculture", config)
+    assert [e["json_pointer"] for e in errors] == [
+        f"/actions/{len(config['actions']) - 1}",
+        f"/tools/{len(config['tools']) - 1}",
+    ]
+
+
+async def test_db_only_niche_checks_every_entry(
+    client: httpx.AsyncClient, admin: dict[str, str], db_session: AsyncSession
+) -> None:
+    config = await _effective(client, admin, "news_radar")
+    config.update(name="job_offers", label="Job offers", auto_actions=[], autonomy="ask")
+    config["actions"] = [*config["actions"], "draft_reply"]
+    errors = await _expect_422(client, admin, db_session, "job_offers", config)
+    assert [e["json_pointer"] for e in errors] == [f"/actions/{len(config['actions']) - 1}"]
+
+
+async def test_auto_action_added_or_orphaned_by_this_put_is_refused(
+    client: httpx.AsyncClient, admin: dict[str, str], db_session: AsyncSession
+) -> None:
+    added = await _effective(client, admin, "news_radar")
+    added["auto_actions"] = [*added["auto_actions"], "ghost"]
+    errors = await _expect_422(client, admin, db_session, "news_radar", added)
+    assert [e["json_pointer"] for e in errors] == [
+        f"/auto_actions/{len(added['auto_actions']) - 1}"
+    ]
+    orphaned = await _effective(client, admin, "news_radar")
+    assert orphaned["auto_actions"] == ["archive"]
+    orphaned["actions"] = [a for a in orphaned["actions"] if a != "archive"]
+    errors = await _expect_422(client, admin, db_session, "news_radar", orphaned)
+    assert [e["json_pointer"] for e in errors] == ["/auto_actions/0"]
+
+
+async def test_baseline_is_the_stored_override_when_one_exists(
+    client: httpx.AsyncClient, admin: dict[str, str], db_session: AsyncSession
+) -> None:
+    shipped = await _effective(client, admin, "inbox", only_registered=False)
+    assert "draft_reply" in shipped["actions"]
+    kept = await _put(client, admin, "inbox", shipped)  # in the YAML baseline: allowed
+    assert kept.status_code == 200, kept.text
+    removed = {**shipped, "actions": [a for a in shipped["actions"] if a != "draft_reply"]}
+    assert (await _put(client, admin, "inbox", removed)).status_code == 200
+    # the override no longer has it, so putting it back counts as adding it
+    errors = await _expect_422(client, admin, db_session, "inbox", shipped)
+    assert [e["json_pointer"] for e in errors] == [
+        f"/actions/{shipped['actions'].index('draft_reply')}"
+    ]
 
 
 async def test_put_requires_admin(
