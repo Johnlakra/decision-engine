@@ -143,3 +143,27 @@ describe("listSearch", () => {
     expect(listSearch(NONE)).toBe("");
   });
 });
+
+describe("planProxy sources and stats", () => {
+  it("allows list, create, a uuid patch and today's stats", () => {
+    expect(planProxy("GET", ["sources"], NONE)).toMatchObject({ ok: true, method: "GET", path: "/v1/sources" });
+    expect(planProxy("POST", ["sources"], NONE)).toMatchObject({ ok: true, method: "POST", path: "/v1/sources" });
+    expect(planProxy("PATCH", ["sources", ITEM_ID], NONE)).toMatchObject({
+      ok: true,
+      method: "PATCH",
+      path: `/v1/sources/${ITEM_ID}`,
+    });
+    expect(planProxy("GET", ["stats", "today"], NONE)).toMatchObject({ ok: true, path: "/v1/stats/today" });
+  });
+
+  it("refuses other methods, non-uuid ids, extra segments and other stats", () => {
+    expect(planProxy("DELETE", ["sources"], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("PATCH", ["sources"], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("GET", ["sources", ITEM_ID], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("PATCH", ["sources", "../x"], NONE)).toEqual({ ok: false, status: 404 });
+    expect(planProxy("PATCH", ["sources", ITEM_ID, "oauth"], NONE)).toEqual({ ok: false, status: 404 });
+    expect(planProxy("POST", ["stats", "today"], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("GET", ["stats"], NONE)).toEqual({ ok: false, status: 404 });
+    expect(planProxy("GET", ["stats", "week"], NONE)).toEqual({ ok: false, status: 404 });
+  });
+});

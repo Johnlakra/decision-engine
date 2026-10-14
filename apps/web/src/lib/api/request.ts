@@ -25,7 +25,7 @@ async function problemErrors(response: Response): Promise<readonly unknown[]> {
 }
 
 export async function requestJson<T>(
-  method: "GET" | "POST" | "PUT",
+  method: "GET" | "POST" | "PUT" | "PATCH",
   path: string,
   body?: unknown,
 ): Promise<T> {

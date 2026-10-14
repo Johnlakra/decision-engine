@@ -68,4 +68,4 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
   }
 }
 
-export { forward as GET, forward as POST, forward as PUT };
+export { forward as GET, forward as POST, forward as PUT, forward as PATCH };

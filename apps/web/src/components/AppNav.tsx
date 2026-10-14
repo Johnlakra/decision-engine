@@ -7,6 +7,8 @@ import { translate, type Locale } from "@/lib/i18n";
 const SECTIONS = [
   { href: "/queue", key: "nav.queue" },
   { href: "/history", key: "nav.history" },
+  { href: "/sources", key: "nav.sources" },
+  { href: "/insights", key: "nav.insights" },
   { href: "/settings", key: "nav.settings" },
 ] as const;
 

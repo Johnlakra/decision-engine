@@ -10,14 +10,14 @@ export const MAX_LIST_LIMIT = 100;
 const RESERVED_NICHE_NAMES: readonly string[] = ["reload"];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type ProxyMethod = "GET" | "POST" | "PUT";
+export type ProxyMethod = "GET" | "POST" | "PUT" | "PATCH";
 
 export type ProxyPlan =
   | { ok: true; method: ProxyMethod; path: string; search: string }
   | { ok: false; status: 404 | 405 };
 
 /** Methods that carry a JSON body through the proxy. */
-export const BODY_METHODS: readonly ProxyMethod[] = ["POST", "PUT"];
+export const BODY_METHODS: readonly ProxyMethod[] = ["POST", "PUT", "PATCH"];
 
 function isUuid(value: string | undefined): value is string {
   return value !== undefined && UUID_PATTERN.test(value);
@@ -62,6 +62,19 @@ function planNiches(method: string, segments: readonly string[]): ProxyPlan {
     : { ok: false, status: 405 };
 }
 
+function planSources(method: string, segments: readonly string[]): ProxyPlan {
+  if (segments.length === 1) {
+    return method === "GET" || method === "POST"
+      ? { ok: true, method, path: "/v1/sources", search: "" }
+      : { ok: false, status: 405 };
+  }
+  const id = segments[1];
+  if (segments.length !== 2 || !isUuid(id)) {
+    return { ok: false, status: 404 };
+  }
+  return only(method, "PATCH", { ok: true, method: "PATCH", path: `/v1/sources/${id}`, search: "" });
+}
+
 export function planProxy(
   method: string,
   segments: readonly string[],
@@ -76,6 +89,14 @@ export function planProxy(
   }
   if (resource === "niches") {
     return planNiches(method, segments);
+  }
+  if (resource === "sources") {
+    return planSources(method, segments);
+  }
+  if (resource === "stats") {
+    return segments.length === 2 && id === "today"
+      ? only(method, "GET", { ok: true, method: "GET", path: "/v1/stats/today", search: "" })
+      : { ok: false, status: 404 };
   }
   if (resource !== "items" || rest.length > 0) {
     return { ok: false, status: 404 };
