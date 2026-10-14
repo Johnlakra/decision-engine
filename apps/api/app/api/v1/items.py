@@ -1,6 +1,7 @@
 """Items router: ingest, bulk ingest, list, get (FR-01, FR-02, FR-03, FR-06, FR-07)."""
 
 import uuid
+from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -21,10 +22,12 @@ from app.ingest.service import (
     remaining_quota,
     seconds_until_utc_midnight,
 )
-from app.models import Decision, Item
+from app.models import ActionLog, Decision, Item
 from app.schemas.ingest import MAX_BULK, BulkRow, IngestItemIn, IngestResult
 from app.schemas.items import DecisionItemOut, item_to_public
 from app.security.api_keys import Principal
+
+ACTIVITY_LIMIT = 50
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -260,3 +263,69 @@ async def get_item(item_id: uuid.UUID, principal: Reader, session: Session) -> D
         raise ProblemError(404, "Not found", "Item not found")
     decisions = await _latest_decisions(session, principal.tenant_id, [item.id])
     return item_to_public(item, decisions.get(item.id))
+
+
+class ActivityEntry(BaseModel):
+    """One executed action on an item. Params and results are not shown: they can hold URLs."""
+
+    action: str
+    status: str
+    created_at: datetime
+    reversible: bool
+    undone_at: datetime | None = None
+
+
+class ActivityOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "data": [
+                        {
+                            "action": "archive",
+                            "status": "done",
+                            "created_at": "2026-10-09T09:00:00Z",
+                            "reversible": False,
+                            "undone_at": None,
+                        }
+                    ]
+                }
+            ]
+        }
+    )
+
+    data: list[ActivityEntry]
+
+
+@router.get(
+    "/{item_id}/activity",
+    response_model=ActivityOut,
+    summary="Actions taken on one item, newest first",
+    operation_id="get_item_activity",
+    responses={404: {"description": "No such item for this tenant"}},
+)
+async def get_item_activity(item_id: uuid.UUID, principal: Reader, session: Session) -> ActivityOut:
+    owned = await session.scalar(
+        select(Item.id).where(Item.id == item_id, Item.tenant_id == principal.tenant_id)
+    )
+    if owned is None:
+        raise ProblemError(404, "Not found", "Item not found")
+    stmt = (
+        select(ActionLog)
+        .where(ActionLog.tenant_id == principal.tenant_id, ActionLog.item_id == item_id)
+        .order_by(ActionLog.created_at.desc(), ActionLog.id.desc())
+        .limit(ACTIVITY_LIMIT)
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+    return ActivityOut(
+        data=[
+            ActivityEntry(
+                action=row.action,
+                status=row.status,
+                created_at=row.created_at,
+                reversible=row.reversible,
+                undone_at=row.undone_at,
+            )
+            for row in rows
+        ]
+    )

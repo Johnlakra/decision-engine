@@ -1,5 +1,7 @@
 """Contains all the data models used in inputs/outputs"""
 
+from .activity_entry import ActivityEntry
+from .activity_out import ActivityOut
 from .answer import Answer
 from .answer_probabilities import AnswerProbabilities
 from .answer_source import AnswerSource
@@ -40,6 +42,10 @@ from .normalised_content_attachments_item import NormalisedContentAttachmentsIte
 from .normalised_content_entities import NormalisedContentEntities
 from .reload_response import ReloadResponse
 from .reload_response_errors_item import ReloadResponseErrorsItem
+from .settings_in import SettingsIn
+from .settings_in_languages_item import SettingsInLanguagesItem
+from .settings_out import SettingsOut
+from .settings_out_languages_item import SettingsOutLanguagesItem
 from .shadow_record import ShadowRecord
 from .shadow_record_answers_type_0 import ShadowRecordAnswersType0
 from .subscription_in import SubscriptionIn
@@ -51,6 +57,8 @@ from .validation_error_context import ValidationErrorContext
 from .verdict import Verdict
 
 __all__ = (
+    "ActivityEntry",
+    "ActivityOut",
     "Answer",
     "AnswerProbabilities",
     "AnswerSource",
@@ -91,6 +99,10 @@ __all__ = (
     "NormalisedContentEntities",
     "ReloadResponse",
     "ReloadResponseErrorsItem",
+    "SettingsIn",
+    "SettingsInLanguagesItem",
+    "SettingsOut",
+    "SettingsOutLanguagesItem",
     "ShadowRecord",
     "ShadowRecordAnswersType0",
     "SubscriptionIn",

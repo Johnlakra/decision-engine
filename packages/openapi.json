@@ -1,6 +1,76 @@
 {
   "components": {
     "schemas": {
+      "ActivityEntry": {
+        "description": "One executed action on an item. Params and results are not shown: they can hold URLs.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "reversible": {
+            "title": "Reversible",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "undone_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undone At"
+          }
+        },
+        "required": [
+          "action",
+          "status",
+          "created_at",
+          "reversible"
+        ],
+        "title": "ActivityEntry",
+        "type": "object"
+      },
+      "ActivityOut": {
+        "examples": [
+          {
+            "data": [
+              {
+                "action": "archive",
+                "created_at": "2026-10-09T09:00:00Z",
+                "reversible": false,
+                "status": "done"
+              }
+            ]
+          }
+        ],
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityEntry"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ActivityOut",
+        "type": "object"
+      },
       "Answer": {
         "properties": {
           "choice": {
@@ -1082,6 +1152,130 @@
         "title": "ReloadResponse",
         "type": "object"
       },
+      "SettingsIn": {
+        "additionalProperties": false,
+        "description": "Full replacement of the editable settings. Unknown keys are refused.",
+        "properties": {
+          "digest_hour": {
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Digest Hour",
+            "type": "integer"
+          },
+          "interests": {
+            "items": {
+              "maxLength": 60,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Interests",
+            "type": "array"
+          },
+          "languages": {
+            "items": {
+              "enum": [
+                "en",
+                "hi",
+                "pa"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Languages",
+            "type": "array"
+          },
+          "ping_cap_per_day": {
+            "maximum": 50.0,
+            "minimum": 0.0,
+            "title": "Ping Cap Per Day",
+            "type": "integer"
+          },
+          "quiet_hours": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Quiet Hours",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quiet_hours",
+          "digest_hour",
+          "ping_cap_per_day",
+          "interests",
+          "languages"
+        ],
+        "title": "SettingsIn",
+        "type": "object"
+      },
+      "SettingsOut": {
+        "examples": [
+          {
+            "digest_hour": 8,
+            "interests": [
+              "ai",
+              "crypto"
+            ],
+            "languages": [
+              "en"
+            ],
+            "ping_cap_per_day": 3,
+            "quiet_hours": [
+              22,
+              7
+            ]
+          }
+        ],
+        "properties": {
+          "digest_hour": {
+            "title": "Digest Hour",
+            "type": "integer"
+          },
+          "interests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Interests",
+            "type": "array"
+          },
+          "languages": {
+            "items": {
+              "enum": [
+                "en",
+                "hi",
+                "pa"
+              ],
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "ping_cap_per_day": {
+            "title": "Ping Cap Per Day",
+            "type": "integer"
+          },
+          "quiet_hours": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Quiet Hours",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quiet_hours",
+          "digest_hour",
+          "ping_cap_per_day",
+          "interests",
+          "languages"
+        ],
+        "title": "SettingsOut",
+        "type": "object"
+      },
       "ShadowRecord": {
         "properties": {
           "answers": {
@@ -1791,6 +1985,52 @@
         ]
       }
     },
+    "/v1/items/{item_id}/activity": {
+      "get": {
+        "operationId": "get_item_activity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such item for this tenant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Actions taken on one item, newest first",
+        "tags": [
+          "items"
+        ]
+      }
+    },
     "/v1/items/{item_id}/decision": {
       "post": {
         "operationId": "decide_item",
@@ -1884,6 +2124,59 @@
         "summary": "Reload niche configs from disk",
         "tags": [
           "niches"
+        ]
+      }
+    },
+    "/v1/settings": {
+      "get": {
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read tenant settings",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "put_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "A setting is out of range"
+          }
+        },
+        "summary": "Replace tenant settings",
+        "tags": [
+          "settings"
         ]
       }
     },

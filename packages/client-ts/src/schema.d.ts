@@ -133,6 +133,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/items/{item_id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Actions taken on one item, newest first */
+        get: operations["get_item_activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/items/{item_id}/decision": {
         parameters: {
             query?: never;
@@ -161,6 +178,24 @@ export interface paths {
         put?: never;
         /** Reload niche configs from disk */
         post: operations["reload_niches"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read tenant settings */
+        get: operations["get_settings"];
+        /** Replace tenant settings */
+        put: operations["put_settings"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -223,6 +258,42 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActivityEntry
+         * @description One executed action on an item. Params and results are not shown: they can hold URLs.
+         */
+        ActivityEntry: {
+            /** Action */
+            action: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Reversible */
+            reversible: boolean;
+            /** Status */
+            status: string;
+            /** Undone At */
+            undone_at?: string | null;
+        };
+        /**
+         * ActivityOut
+         * @example {
+         *       "data": [
+         *         {
+         *           "action": "archive",
+         *           "created_at": "2026-10-09T09:00:00Z",
+         *           "reversible": false,
+         *           "status": "done"
+         *         }
+         *       ]
+         *     }
+         */
+        ActivityOut: {
+            /** Data */
+            data: components["schemas"]["ActivityEntry"][];
+        };
         /** Answer */
         Answer: {
             /** Choice */
@@ -642,6 +713,52 @@ export interface components {
             }[];
             /** Loaded */
             loaded: string[];
+        };
+        /**
+         * SettingsIn
+         * @description Full replacement of the editable settings. Unknown keys are refused.
+         */
+        SettingsIn: {
+            /** Digest Hour */
+            digest_hour: number;
+            /** Interests */
+            interests: string[];
+            /** Languages */
+            languages: ("en" | "hi" | "pa")[];
+            /** Ping Cap Per Day */
+            ping_cap_per_day: number;
+            /** Quiet Hours */
+            quiet_hours: number[];
+        };
+        /**
+         * SettingsOut
+         * @example {
+         *       "digest_hour": 8,
+         *       "interests": [
+         *         "ai",
+         *         "crypto"
+         *       ],
+         *       "languages": [
+         *         "en"
+         *       ],
+         *       "ping_cap_per_day": 3,
+         *       "quiet_hours": [
+         *         22,
+         *         7
+         *       ]
+         *     }
+         */
+        SettingsOut: {
+            /** Digest Hour */
+            digest_hour: number;
+            /** Interests */
+            interests: string[];
+            /** Languages */
+            languages: ("en" | "hi" | "pa")[];
+            /** Ping Cap Per Day */
+            ping_cap_per_day: number;
+            /** Quiet Hours */
+            quiet_hours: number[];
         };
         /** ShadowRecord */
         ShadowRecord: {
@@ -1086,6 +1203,44 @@ export interface operations {
             };
         };
     };
+    get_item_activity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityOut"];
+                };
+            };
+            /** @description No such item for this tenant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     decide_item: {
         parameters: {
             query?: never;
@@ -1181,6 +1336,57 @@ export interface operations {
                      */
                     "application/problem+json": unknown;
                 };
+            };
+        };
+    };
+    get_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+        };
+    };
+    put_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+            /** @description A setting is out of range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
