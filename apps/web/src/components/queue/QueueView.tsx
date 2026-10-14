@@ -6,16 +6,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { decisionErrorKey } from "@/lib/item/decision-error";
 import { fetchPendingItems, postDecisionBody, type DecisionBody, type ItemOut } from "@/lib/api/items";
 import { translate, type Locale } from "@/lib/i18n";
+import { buildBulkBatch, isBulkEligible } from "@/lib/queue/bulk";
 import { queueActionForKey, type QueueAction } from "@/lib/queue/keys";
 import {
+  cancelBatch,
   cancelDecision,
   dueDecisions,
   scheduleDecision,
+  scheduleMany,
   type PendingDecision,
   type Verdict,
 } from "@/lib/queue/undo";
 import { SNOOZE_KEYS, snoozePresets, type SnoozePresetKey } from "@/lib/queue/snooze";
 import { moveIndex, orderedOptions } from "@/lib/queue/view";
+import { BulkBar } from "./BulkBar";
 import { QueueCard } from "./QueueCard";
 import { SnoozeMenu } from "./SnoozeMenu";
 import { UndoToast } from "./UndoToast";
@@ -24,6 +28,7 @@ const QUEUE_KEY = ["queue", "pending"] as const;
 const FLUSH_INTERVAL_MS = 500;
 const REFRESH_INTERVAL_MS = 30_000;
 const URGENT_FROM = 2;
+const MAX_CONCURRENT_SENDS = 3;
 const ALREADY_HANDLED_KEY = "item.errors.alreadyHandled";
 
 interface QueueViewProps {
@@ -62,6 +67,8 @@ export function QueueView({ locale }: QueueViewProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
   const items: ItemOut[] = (query.data?.data ?? []).filter(
     (item) => !pending.some((entry) => entry.itemId === item.id),
@@ -69,6 +76,13 @@ export function QueueView({ locale }: QueueViewProps) {
   const safeFocus = items.length === 0 ? 0 : Math.min(focus, items.length - 1);
   const focused = items[safeFocus];
   const latest = pending[pending.length - 1];
+  const toastLabel = (entry: PendingDecision): string => {
+    if (entry.batchId) {
+      const count = pending.filter((held) => held.batchId === entry.batchId).length;
+      return t("queue.bulk.done", { count });
+    }
+    return t(entry.verdict === "snooze" ? "queue.snoozed" : "queue.done");
+  };
   const urgentCount = items.filter((item) => (item.urgency ?? 0) >= URGENT_FROM).length;
 
   const holdDecision = useCallback(
@@ -97,16 +111,44 @@ export function QueueView({ locale }: QueueViewProps) {
     [focused, holdDecision],
   );
 
-  const undo = useCallback((itemId: string) => {
-    pendingRef.current = cancelDecision(pendingRef.current, itemId);
+  const undo = useCallback((entry: PendingDecision) => {
+    pendingRef.current = entry.batchId
+      ? cancelBatch(pendingRef.current, entry.batchId)
+      : cancelDecision(pendingRef.current, entry.itemId);
     setPending(pendingRef.current);
   }, []);
+
+  const exitBulk = useCallback(() => {
+    setBulkMode(false);
+    setSelected(new Set());
+  }, []);
+
+  const toggleSelected = useCallback((itemId: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(itemId)) {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }, []);
+
+  const approveSelected = useCallback(() => {
+    const batch = buildBulkBatch(items, selected);
+    if (batch.length === 0) {
+      return;
+    }
+    setFailed(false);
+    pendingRef.current = scheduleMany(pendingRef.current, batch, Date.now(), crypto.randomUUID());
+    setPending(pendingRef.current);
+    exitBulk();
+  }, [exitBulk, items, selected]);
 
   // Send each decision once its undo window has closed. The in-flight set stops a second send.
   useEffect(() => {
     const timer = setInterval(() => {
       for (const due of dueDecisions(pendingRef.current, Date.now())) {
-        if (inFlight.current.has(due.itemId)) {
+        if (inFlight.current.has(due.itemId) || inFlight.current.size >= MAX_CONCURRENT_SENDS) {
           continue;
         }
         inFlight.current.add(due.itemId);
@@ -132,6 +174,18 @@ export function QueueView({ locale }: QueueViewProps) {
     (action: QueueAction) => {
       if (action.type === "help") {
         setHelpOpen((open) => !open);
+        return;
+      }
+      if (action.type === "bulk") {
+        if (bulkMode) {
+          exitBulk();
+        } else {
+          setBulkMode(true);
+        }
+        return;
+      }
+      if (action.type === "exitBulk") {
+        exitBulk();
         return;
       }
       if (!focused) {
@@ -164,6 +218,11 @@ export function QueueView({ locale }: QueueViewProps) {
           }
           return;
         }
+        case "select":
+          if (bulkMode && isBulkEligible(focused)) {
+            toggleSelected(focused.id);
+          }
+          return;
         case "snooze":
           setSnoozeOpen(true);
           return;
@@ -172,7 +231,7 @@ export function QueueView({ locale }: QueueViewProps) {
           return;
       }
     },
-    [focused, holdDecision, items.length, router, safeFocus],
+    [bulkMode, exitBulk, focused, holdDecision, items.length, router, safeFocus, toggleSelected],
   );
 
   useEffect(() => {
@@ -222,7 +281,20 @@ export function QueueView({ locale }: QueueViewProps) {
           {t("queue.count", { count: items.length })}
           {urgentCount > 0 ? ` · ${t("queue.urgent", { count: urgentCount })}` : ""}
         </p>
+        <button
+          type="button"
+          aria-pressed={bulkMode}
+          aria-keyshortcuts="b"
+          onClick={() => (bulkMode ? exitBulk() : setBulkMode(true))}
+          className="ml-auto rounded-[8px] border border-border px-3 py-1 text-[13px]"
+        >
+          {t("queue.bulk.toggle")}
+        </button>
       </header>
+
+      {bulkMode ? (
+        <BulkBar locale={locale} count={buildBulkBatch(items, selected).length} onApprove={approveSelected} onExit={exitBulk} />
+      ) : null}
 
       {failed ? (
         <p role="alert" className="mt-3 text-[14px] text-danger">
@@ -241,12 +313,21 @@ export function QueueView({ locale }: QueueViewProps) {
           />
           <ul className="space-y-1" aria-label={t("queue.title")}>
             {items.map((item, index) => (
-              <li key={item.id}>
+              <li key={item.id} className="flex items-center gap-2">
+                {bulkMode && isBulkEligible(item) ? (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(item.id)}
+                    onChange={() => toggleSelected(item.id)}
+                    aria-label={t("queue.bulk.select", { title: item.content?.title ?? "—" })}
+                    className="h-4 w-4 shrink-0"
+                  />
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setFocus(index)}
                   aria-current={index === safeFocus ? "true" : undefined}
-                  className="w-full rounded-[8px] px-3 py-2 text-left text-[14px] hover:bg-surface-2"
+                  className="min-w-0 flex-1 rounded-[8px] px-3 py-2 text-left text-[14px] hover:bg-surface-2"
                 >
                   {item.content?.title ?? "—"}
                 </button>
@@ -268,8 +349,9 @@ export function QueueView({ locale }: QueueViewProps) {
 
       {latest ? (
         <UndoToast
-          label={t(latest.verdict === "snooze" ? "queue.snoozed" : "queue.done")} locale={locale}
-          onUndo={() => undo(latest.itemId)}
+          label={toastLabel(latest)}
+          locale={locale}
+          onUndo={() => undo(latest)}
         />
       ) : null}
     </div>

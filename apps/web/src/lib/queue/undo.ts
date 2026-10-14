@@ -15,6 +15,8 @@ export interface PendingDecision {
   /** ISO 8601 UTC; set only when the verdict is snooze. */
   readonly snoozeUntil?: string;
   readonly dueAt: number;
+  /** Set on bulk approvals so one Undo cancels the whole batch. */
+  readonly batchId?: string;
 }
 
 export function scheduleDecision(
@@ -44,4 +46,31 @@ export function cancelDecision(
 
 export function dueDecisions(pending: readonly PendingDecision[], now: number): PendingDecision[] {
   return pending.filter((entry) => entry.dueAt <= now);
+}
+
+export interface BatchEntry {
+  readonly itemId: string;
+  readonly option: string;
+}
+
+/** Hold several approvals under one batch id, all due at the same moment. */
+export function scheduleMany(
+  pending: readonly PendingDecision[],
+  entries: readonly BatchEntry[],
+  now: number,
+  batchId: string,
+): PendingDecision[] {
+  const ids = new Set(entries.map((entry) => entry.itemId));
+  const held: PendingDecision[] = entries.map((entry) => ({
+    itemId: entry.itemId,
+    verdict: "approve",
+    option: entry.option,
+    dueAt: now + UNDO_WINDOW_MS,
+    batchId,
+  }));
+  return [...pending.filter((entry) => !ids.has(entry.itemId)), ...held];
+}
+
+export function cancelBatch(pending: readonly PendingDecision[], batchId: string): PendingDecision[] {
+  return pending.filter((entry) => entry.batchId !== batchId);
 }

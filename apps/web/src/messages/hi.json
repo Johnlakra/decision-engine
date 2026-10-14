@@ -25,7 +25,7 @@
   "queue.confidence.high": "उच्च भरोसा",
   "queue.confidence.medium": "मध्यम भरोसा",
   "queue.confidence.low": "कम भरोसा",
-  "queue.keys": "a स्वीकार · r अस्वीकार · s टालें · e संपादित · j/k आगे-पीछे · 1–5 चुनें · ? मदद",
+  "queue.keys": "a स्वीकार · r अस्वीकार · s टालें · e संपादित · b एक साथ · space चुनें · j/k आगे-पीछे · 1–5 चुनें · ? मदद",
   "auth.signIn": "Google से साइन इन करें",
   "auth.denied": "यह Google खाता अनुमत नहीं है।",
   "queue.urgency.urgent": "जरूरी",
@@ -104,5 +104,11 @@
   "queue.snooze.tomorrow": "कल, सुबह 9:00",
   "queue.snooze.nextWeek": "अगले हफ़्ते, सोमवार 9:00",
   "queue.snooze.close": "बंद करें (Esc)",
-  "queue.snoozed": "टाला गया"
+  "queue.snoozed": "टाला गया",
+  "queue.bulk.toggle": "एक साथ",
+  "queue.bulk.approve": "सुझाए गए स्वीकार करें ({count})",
+  "queue.bulk.selected": "{count} चुने गए",
+  "queue.bulk.exit": "एक साथ मोड बंद (Esc)",
+  "queue.bulk.select": "{title} चुनें",
+  "queue.bulk.done": "{count} स्वीकार किए"
 }

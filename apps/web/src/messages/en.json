@@ -25,7 +25,7 @@
   "queue.confidence.high": "High confidence",
   "queue.confidence.medium": "Medium confidence",
   "queue.confidence.low": "Low confidence",
-  "queue.keys": "a approve · r reject · s snooze · e edit · j/k move · 1–5 choose · ? help",
+  "queue.keys": "a approve · r reject · s snooze · e edit · b bulk · space select · j/k move · 1–5 choose · ? help",
   "auth.signIn": "Sign in with Google",
   "auth.denied": "This Google account is not allowed.",
   "queue.urgency.urgent": "Urgent",
@@ -104,5 +104,11 @@
   "queue.snooze.tomorrow": "Tomorrow, 9:00",
   "queue.snooze.nextWeek": "Next week, Monday 9:00",
   "queue.snooze.close": "Close (Esc)",
-  "queue.snoozed": "Snoozed"
+  "queue.snoozed": "Snoozed",
+  "queue.bulk.toggle": "Bulk",
+  "queue.bulk.approve": "Approve recommended ({count})",
+  "queue.bulk.selected": "{count} selected",
+  "queue.bulk.exit": "Exit bulk (Esc)",
+  "queue.bulk.select": "Select {title}",
+  "queue.bulk.done": "Approved {count}"
 }

@@ -25,7 +25,7 @@
   "queue.confidence.high": "ਉੱਚਾ ਭਰੋਸਾ",
   "queue.confidence.medium": "ਦਰਮਿਆਨਾ ਭਰੋਸਾ",
   "queue.confidence.low": "ਘੱਟ ਭਰੋਸਾ",
-  "queue.keys": "a ਮਨਜ਼ੂਰ · r ਰੱਦ · s ਟਾਲੋ · e ਸੋਧ · j/k ਅੱਗੇ-ਪਿੱਛੇ · 1–5 ਚੁਣੋ · ? ਮਦਦ",
+  "queue.keys": "a ਮਨਜ਼ੂਰ · r ਰੱਦ · s ਟਾਲੋ · e ਸੋਧ · b ਇਕੱਠੇ · space ਚੁਣੋ · j/k ਅੱਗੇ-ਪਿੱਛੇ · 1–5 ਚੁਣੋ · ? ਮਦਦ",
   "auth.signIn": "Google ਨਾਲ ਸਾਈਨ ਇਨ ਕਰੋ",
   "auth.denied": "ਇਹ Google ਖਾਤਾ ਇਜਾਜ਼ਤ ਪ੍ਰਾਪਤ ਨਹੀਂ ਹੈ।",
   "queue.urgency.urgent": "ਜ਼ਰੂਰੀ",
@@ -104,5 +104,11 @@
   "queue.snooze.tomorrow": "ਕੱਲ੍ਹ, ਸਵੇਰੇ 9:00",
   "queue.snooze.nextWeek": "ਅਗਲੇ ਹਫ਼ਤੇ, ਸੋਮਵਾਰ 9:00",
   "queue.snooze.close": "ਬੰਦ ਕਰੋ (Esc)",
-  "queue.snoozed": "ਟਾਲਿਆ ਗਿਆ"
+  "queue.snoozed": "ਟਾਲਿਆ ਗਿਆ",
+  "queue.bulk.toggle": "ਇਕੱਠੇ",
+  "queue.bulk.approve": "ਸੁਝਾਏ ਮਨਜ਼ੂਰ ਕਰੋ ({count})",
+  "queue.bulk.selected": "{count} ਚੁਣੇ ਗਏ",
+  "queue.bulk.exit": "ਇਕੱਠੇ ਮੋਡ ਬੰਦ (Esc)",
+  "queue.bulk.select": "{title} ਚੁਣੋ",
+  "queue.bulk.done": "{count} ਮਨਜ਼ੂਰ ਕੀਤੇ"
 }

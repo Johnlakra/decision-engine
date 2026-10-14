@@ -9,7 +9,10 @@ export type QueueAction =
   | { type: "previous" }
   | { type: "choose"; index: number }
   | { type: "open" }
-  | { type: "help" };
+  | { type: "help" }
+  | { type: "bulk" }
+  | { type: "select" }
+  | { type: "exitBulk" };
 
 const CHOICE_KEYS = ["1", "2", "3", "4", "5"];
 
@@ -22,6 +25,9 @@ const KEY_ACTIONS: ReadonlyMap<string, QueueAction> = new Map<string, QueueActio
   ["k", { type: "previous" }],
   ["o", { type: "open" }],
   ["?", { type: "help" }],
+  ["b", { type: "bulk" }],
+  [" ", { type: "select" }],
+  ["Escape", { type: "exitBulk" }],
 ]);
 
 export function queueActionForKey(key: string): QueueAction | null {

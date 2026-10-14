@@ -66,3 +66,22 @@ describe("undo window", () => {
     expect(replaced[0]?.verdict).toBe("reject");
   });
 });
+
+describe("batch hold", () => {
+  it("scheduleMany holds every entry under one batch id and cancelBatch drops them all", async () => {
+    const { scheduleMany, cancelBatch } = await import("./undo");
+    const held = scheduleMany(
+      [],
+      [
+        { itemId: "1", option: "A" },
+        { itemId: "2", option: "B" },
+      ],
+      1_000,
+      "batch-1",
+    );
+    expect(held.map((entry) => entry.batchId)).toEqual(["batch-1", "batch-1"]);
+    expect(held.every((entry) => entry.verdict === "approve" && entry.dueAt === 11_000)).toBe(true);
+    const other = scheduleMany(held, [{ itemId: "3", option: "A" }], 1_000, "batch-2");
+    expect(cancelBatch(other, "batch-1").map((entry) => entry.itemId)).toEqual(["3"]);
+  });
+});
