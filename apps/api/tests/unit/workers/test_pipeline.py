@@ -215,7 +215,12 @@ async def test_process_item_propagates_graph_errors_for_retry(
 
 
 def test_handler_map_covers_all_job_kinds() -> None:
-    assert set(handlers.HANDLERS) == {JobKind.PROCESS, JobKind.WEBHOOK, JobKind.ACTION}
+    assert set(handlers.HANDLERS) == {
+        JobKind.PROCESS,
+        JobKind.WEBHOOK,
+        JobKind.ACTION,
+        JobKind.POLL,
+    }
     assert handlers.HANDLERS[JobKind.PROCESS] is pipeline.process_item
 
 

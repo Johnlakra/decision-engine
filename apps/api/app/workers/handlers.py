@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.actions.jobs import handle_action_job
+from app.connectors.poll import handle_poll
 from app.integrations.webhooks_out import handle_webhook_job
 from app.models.enums import JobKind
 from app.models.job import Job
@@ -32,4 +33,5 @@ HANDLERS: Mapping[JobKind, Handler] = {
     JobKind.PROCESS: process_item,
     JobKind.WEBHOOK: handle_webhook_job,
     JobKind.ACTION: handle_action,
+    JobKind.POLL: handle_poll,
 }

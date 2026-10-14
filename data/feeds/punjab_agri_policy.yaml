@@ -1,0 +1,7 @@
+# Starter feeds for the news_radar topic "punjab_agri_policy" (Phase 2.3). Google News queries only:
+# no verified farm-policy RSS yet. The agriculture niche (Phase 7) owns advisory content, not this list.
+topic: punjab_agri_policy
+niche_hint: news_radar
+feeds:
+  - {slug: agri-gnews-policy, name: Google News Punjab farm policy, type: google_news, query: "Punjab farmers policy"}
+  - {slug: agri-gnews-mandi, name: Google News Punjab mandi prices, type: google_news, query: "Punjab mandi wheat paddy price"}

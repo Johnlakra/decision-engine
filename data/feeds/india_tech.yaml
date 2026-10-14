@@ -1,0 +1,8 @@
+# Starter feeds for the news_radar topic "india_tech" (Phase 2.3). URLs checked live: all return valid feeds.
+topic: india_tech
+niche_hint: news_radar
+feeds:
+  - {slug: india-inc42, name: Inc42, type: rss, url: "https://inc42.com/feed/"}
+  - {slug: india-yourstory, name: YourStory, type: rss, url: "https://yourstory.com/feed"}
+  - {slug: india-et-tech, name: Economic Times Tech, type: rss, url: "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms"}
+  - {slug: india-gnews-startups, name: Google News Indian startups, type: google_news, query: "Indian startup funding policy"}

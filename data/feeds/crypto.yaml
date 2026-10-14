@@ -1,0 +1,8 @@
+# Starter feeds for the news_radar topic "crypto" (Phase 2.3). URLs checked live: all return valid feeds.
+topic: crypto
+niche_hint: news_radar
+feeds:
+  - {slug: crypto-coindesk, name: CoinDesk, type: rss, url: "https://www.coindesk.com/arc/outboundfeeds/rss"}
+  - {slug: crypto-cointelegraph, name: Cointelegraph, type: rss, url: "https://cointelegraph.com/rss"}
+  - {slug: crypto-decrypt, name: Decrypt, type: rss, url: "https://decrypt.co/feed"}
+  - {slug: crypto-gnews-india, name: Google News crypto India regulation, type: google_news, query: "crypto regulation India"}

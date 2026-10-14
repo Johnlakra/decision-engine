@@ -1,0 +1,11 @@
+# Starter feeds for the news_radar topic "ai" (Phase 2.3). URLs checked live: all return valid feeds.
+# Load with: cd apps/api && uv run python -m scripts.load_feeds
+topic: ai
+niche_hint: news_radar
+feeds:
+  - {slug: ai-openai-news, name: OpenAI news, type: rss, url: "https://openai.com/news/rss.xml"}
+  - {slug: ai-google-blog, name: Google AI blog, type: rss, url: "https://blog.google/innovation-and-ai/technology/ai/rss/"}
+  - {slug: ai-mit-review, name: MIT Technology Review, type: rss, url: "https://www.technologyreview.com/feed/"}
+  - {slug: ai-hf-blog, name: Hugging Face blog, type: rss, url: "https://huggingface.co/blog/feed.xml"}
+  - {slug: ai-hn-100, name: Hacker News (100+ points), type: hn, min_points: 100}
+  - {slug: ai-gnews-india, name: Google News AI India, type: google_news, query: "artificial intelligence India"}
