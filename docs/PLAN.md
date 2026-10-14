@@ -64,9 +64,10 @@ Goal: daily AI/crypto/news keep-or-skip with a Telegram digest; Opportunity Rada
 shadow report prints per-cutoff missed/skipped table.
 
 ## Phase 3 — Web app: approval queue (weeks 4–6)
-- [ ] 3.1 UX spec + design tokens + screen mocks per docs/UI_UX.md — **ui-ux-designer**
-- [ ] 3.2 Next.js app scaffold, Auth.js Google + allow-list, server-side API proxy, i18n (en/hi/pa) — **frontend-builder**
-- [ ] 3.3 Queue screen with cards, keyboard shortcuts, undo toast, bulk mode (FR-50..55) — **frontend-builder**
+Status (uncommitted until noted, 2026-10-14): 3.1–3.3 partly built, see the boxes below.
+- [~] 3.1 UX spec + design tokens + screen mocks per docs/UI_UX.md — **ui-ux-designer** (tokens in `globals.css`; queue states in UI_UX.md section 8; mocks not drawn)
+- [~] 3.2 Next.js app scaffold, Auth.js Google + allow-list, server-side API proxy, i18n (en/hi/pa) — **frontend-builder** (live Google sign-in not run: no OAuth client here; shadcn/ui not added yet)
+- [~] 3.3 Queue screen with cards, keyboard shortcuts, undo toast, bulk mode (FR-50..55) — **frontend-builder** (cards, keys, undo, option choice done; snooze, edit, bulk, filter chips, command palette not yet)
 - [ ] 3.4 Item detail: raw vs normalised, Laya probabilities, rationale, edit decision — **frontend-builder**
 - [ ] 3.5 History, Niches (view/edit YAML with validation), Sources (add RSS/webhook), Insights (budgets, counts), Settings (Laya mode, autonomy, digest hour, quiet hours) — **frontend-builder**
 - [ ] 3.6 Playwright e2e: approve flow, keyboard flow, undo — **test-writer**

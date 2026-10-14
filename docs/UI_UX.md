@@ -92,3 +92,12 @@ All strings in `messages/{en,hi,pa}.json`.
 - [ ] Undo after every queue action; no action without feedback
 - [ ] hi and pa render correctly (fonts, line height), long words wrap
 - [ ] Lighthouse a11y ≥ 95, performance ≥ 85 on the queue
+
+## 8. Build status (Phase 3, 2026-10-14)
+- Queue states built: loading, error with retry, empty, failed send (back in the queue), undo window.
+- Keys built: a, r, 1–5, j, k, o, ?. Not built: s (snooze) and e (edit), which need the time picker and the detail view.
+- Confidence: High >= 0.8 (spec), Medium >= 0.5 (our threshold, not in the spec), Low below.
+- Undo is client-side: decisions are held 10 s and sent when the window closes. The API has no undo.
+- Hindi and Punjabi strings are first drafts and need a native-speaker review before release.
+- Fonts: Inter is named in the stylesheet but not loaded yet. shadcn/ui components are not added yet.
+
