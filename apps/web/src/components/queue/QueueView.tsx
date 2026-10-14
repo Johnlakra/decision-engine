@@ -19,6 +19,8 @@ import {
 } from "@/lib/queue/undo";
 import { SNOOZE_KEYS, snoozePresets, type SnoozePresetKey } from "@/lib/queue/snooze";
 import { moveIndex, orderedOptions } from "@/lib/queue/view";
+import { CommandPalette } from "./CommandPalette";
+import type { PaletteCommandId } from "@/lib/queue/commands";
 import { BulkBar } from "./BulkBar";
 import { QueueCard } from "./QueueCard";
 import { SnoozeMenu } from "./SnoozeMenu";
@@ -42,6 +44,23 @@ function isTypingTarget(target: EventTarget | null): boolean {
   }
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
+
+const PALETTE_ROUTES: Readonly<Partial<Record<PaletteCommandId, string>>> = {
+  goQueue: "/queue",
+  goHistory: "/history",
+  goSettings: "/settings",
+};
+
+const PALETTE_ACTIONS: Readonly<Partial<Record<PaletteCommandId, QueueAction>>> = {
+  approve: { type: "approve" },
+  reject: { type: "reject" },
+  snooze: { type: "snooze" },
+  open: { type: "edit" },
+  bulk: { type: "bulk" },
+  next: { type: "next" },
+  previous: { type: "previous" },
+  help: { type: "help" },
+};
 
 function decisionBody(due: PendingDecision): DecisionBody {
   if (due.verdict === "snooze") {
@@ -234,6 +253,21 @@ export function QueueView({ locale }: QueueViewProps) {
     [bulkMode, exitBulk, focused, holdDecision, items.length, router, safeFocus, toggleSelected],
   );
 
+  const runPaletteCommand = useCallback(
+    (id: PaletteCommandId) => {
+      const route = PALETTE_ROUTES[id];
+      if (route) {
+        router.push(route);
+        return;
+      }
+      const action = PALETTE_ACTIONS[id];
+      if (action) {
+        runAction(action);
+      }
+    },
+    [router, runAction],
+  );
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
@@ -275,6 +309,7 @@ export function QueueView({ locale }: QueueViewProps) {
 
   return (
     <div className="mx-auto max-w-[760px] p-4">
+      <CommandPalette locale={locale} onRun={runPaletteCommand} />
       <header className="flex flex-wrap items-baseline gap-3">
         <h1 className="text-[20px] font-semibold">{t("queue.title")}</h1>
         <p className="text-[14px] text-muted">

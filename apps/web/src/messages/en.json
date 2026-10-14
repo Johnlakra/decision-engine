@@ -110,5 +110,19 @@
   "queue.bulk.selected": "{count} selected",
   "queue.bulk.exit": "Exit bulk (Esc)",
   "queue.bulk.select": "Select {title}",
-  "queue.bulk.done": "Approved {count}"
+  "queue.bulk.done": "Approved {count}",
+  "palette.title": "Command palette",
+  "palette.placeholder": "Type a command…",
+  "palette.empty": "No matching commands",
+  "palette.cmd.approve": "Approve focused",
+  "palette.cmd.reject": "Reject focused",
+  "palette.cmd.snooze": "Snooze focused",
+  "palette.cmd.open": "Open item detail",
+  "palette.cmd.bulk": "Start bulk mode",
+  "palette.cmd.next": "Next item",
+  "palette.cmd.previous": "Previous item",
+  "palette.cmd.help": "Show keyboard shortcuts",
+  "palette.cmd.goQueue": "Go to Queue",
+  "palette.cmd.goHistory": "Go to History",
+  "palette.cmd.goSettings": "Go to Settings"
 }

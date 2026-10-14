@@ -110,5 +110,19 @@
   "queue.bulk.selected": "{count} चुने गए",
   "queue.bulk.exit": "एक साथ मोड बंद (Esc)",
   "queue.bulk.select": "{title} चुनें",
-  "queue.bulk.done": "{count} स्वीकार किए"
+  "queue.bulk.done": "{count} स्वीकार किए",
+  "palette.title": "कमांड पैलेट",
+  "palette.placeholder": "कमांड लिखें…",
+  "palette.empty": "कोई कमांड नहीं मिली",
+  "palette.cmd.approve": "चुने गए को मंज़ूर करें",
+  "palette.cmd.reject": "चुने गए को अस्वीकार करें",
+  "palette.cmd.snooze": "चुने गए को टालें",
+  "palette.cmd.open": "आइटम का विवरण खोलें",
+  "palette.cmd.bulk": "एक साथ मोड शुरू करें",
+  "palette.cmd.next": "अगला आइटम",
+  "palette.cmd.previous": "पिछला आइटम",
+  "palette.cmd.help": "कीबोर्ड शॉर्टकट दिखाएँ",
+  "palette.cmd.goQueue": "कतार पर जाएँ",
+  "palette.cmd.goHistory": "इतिहास पर जाएँ",
+  "palette.cmd.goSettings": "सेटिंग्स पर जाएँ"
 }

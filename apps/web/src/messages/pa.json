@@ -110,5 +110,19 @@
   "queue.bulk.selected": "{count} ਚੁਣੇ ਗਏ",
   "queue.bulk.exit": "ਇਕੱਠੇ ਮੋਡ ਬੰਦ (Esc)",
   "queue.bulk.select": "{title} ਚੁਣੋ",
-  "queue.bulk.done": "{count} ਮਨਜ਼ੂਰ ਕੀਤੇ"
+  "queue.bulk.done": "{count} ਮਨਜ਼ੂਰ ਕੀਤੇ",
+  "palette.title": "ਕਮਾਂਡ ਪੈਲੇਟ",
+  "palette.placeholder": "ਕਮਾਂਡ ਲਿਖੋ…",
+  "palette.empty": "ਕੋਈ ਕਮਾਂਡ ਨਹੀਂ ਮਿਲੀ",
+  "palette.cmd.approve": "ਚੁਣੇ ਨੂੰ ਮਨਜ਼ੂਰ ਕਰੋ",
+  "palette.cmd.reject": "ਚੁਣੇ ਨੂੰ ਰੱਦ ਕਰੋ",
+  "palette.cmd.snooze": "ਚੁਣੇ ਨੂੰ ਟਾਲੋ",
+  "palette.cmd.open": "ਆਈਟਮ ਦਾ ਵੇਰਵਾ ਖੋਲ੍ਹੋ",
+  "palette.cmd.bulk": "ਇਕੱਠੇ ਮੋਡ ਸ਼ੁਰੂ ਕਰੋ",
+  "palette.cmd.next": "ਅਗਲੀ ਆਈਟਮ",
+  "palette.cmd.previous": "ਪਿਛਲੀ ਆਈਟਮ",
+  "palette.cmd.help": "ਕੀਬੋਰਡ ਸ਼ਾਰਟਕੱਟ ਦਿਖਾਓ",
+  "palette.cmd.goQueue": "ਕਤਾਰ ਤੇ ਜਾਓ",
+  "palette.cmd.goHistory": "ਇਤਿਹਾਸ ਤੇ ਜਾਓ",
+  "palette.cmd.goSettings": "ਸੈਟਿੰਗਜ਼ ਤੇ ਜਾਓ"
 }
