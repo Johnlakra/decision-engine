@@ -45,6 +45,7 @@ from .shadow_record_answers_type_0 import ShadowRecordAnswersType0
 from .subscription_in import SubscriptionIn
 from .subscription_list import SubscriptionList
 from .subscription_out import SubscriptionOut
+from .telegram_ack import TelegramAck
 from .validation_error import ValidationError
 from .validation_error_context import ValidationErrorContext
 from .verdict import Verdict
@@ -95,6 +96,7 @@ __all__ = (
     "SubscriptionIn",
     "SubscriptionList",
     "SubscriptionOut",
+    "TelegramAck",
     "ValidationError",
     "ValidationErrorContext",
     "Verdict",
