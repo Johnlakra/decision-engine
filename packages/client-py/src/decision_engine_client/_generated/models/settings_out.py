@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.settings_out_languages_item import SettingsOutLanguagesItem, check_settings_out_languages_item
+from ..models.settings_out_laya_mode_default import SettingsOutLayaModeDefault, check_settings_out_laya_mode_default
+from ..models.settings_out_laya_mode_type_0 import SettingsOutLayaModeType0, check_settings_out_laya_mode_type_0
+
+if TYPE_CHECKING:
+    from ..models.settings_out_laya_mode_by_niche import SettingsOutLayaModeByNiche
+
 
 T = TypeVar("T", bound="SettingsOut")
 
@@ -18,6 +24,9 @@ class SettingsOut:
         digest_hour (int):
         interests (list[str]):
         languages (list[SettingsOutLanguagesItem]):
+        laya_mode (None | SettingsOutLayaModeType0): Stored tenant mode; null = the env default applies
+        laya_mode_by_niche (SettingsOutLayaModeByNiche): Stored per-niche overrides
+        laya_mode_default (SettingsOutLayaModeDefault): Read-only env LAYA_MODE
         ping_cap_per_day (int):
         quiet_hours (list[int]):
     """
@@ -25,6 +34,9 @@ class SettingsOut:
     digest_hour: int
     interests: list[str]
     languages: list[SettingsOutLanguagesItem]
+    laya_mode: None | SettingsOutLayaModeType0
+    laya_mode_by_niche: SettingsOutLayaModeByNiche
+    laya_mode_default: SettingsOutLayaModeDefault
     ping_cap_per_day: int
     quiet_hours: list[int]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -39,6 +51,16 @@ class SettingsOut:
             languages_item: str = languages_item_data
             languages.append(languages_item)
 
+        laya_mode: None | str
+        if isinstance(self.laya_mode, str):
+            laya_mode = self.laya_mode
+        else:
+            laya_mode = self.laya_mode
+
+        laya_mode_by_niche = self.laya_mode_by_niche.to_dict()
+
+        laya_mode_default: str = self.laya_mode_default
+
         ping_cap_per_day = self.ping_cap_per_day
 
         quiet_hours = self.quiet_hours
@@ -50,6 +72,9 @@ class SettingsOut:
                 "digest_hour": digest_hour,
                 "interests": interests,
                 "languages": languages,
+                "laya_mode": laya_mode,
+                "laya_mode_by_niche": laya_mode_by_niche,
+                "laya_mode_default": laya_mode_default,
                 "ping_cap_per_day": ping_cap_per_day,
                 "quiet_hours": quiet_hours,
             }
@@ -59,6 +84,8 @@ class SettingsOut:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.settings_out_laya_mode_by_niche import SettingsOutLayaModeByNiche  # noqa: PLC0415
+
         d = dict(src_dict)
         digest_hour = d.pop("digest_hour")
 
@@ -71,6 +98,25 @@ class SettingsOut:
 
             languages.append(languages_item)
 
+        def _parse_laya_mode(data: object) -> None | SettingsOutLayaModeType0:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                laya_mode_type_0 = check_settings_out_laya_mode_type_0(data)
+
+                return laya_mode_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | SettingsOutLayaModeType0, data)
+
+        laya_mode = _parse_laya_mode(d.pop("laya_mode"))
+
+        laya_mode_by_niche = SettingsOutLayaModeByNiche.from_dict(d.pop("laya_mode_by_niche"))
+
+        laya_mode_default = check_settings_out_laya_mode_default(d.pop("laya_mode_default"))
+
         ping_cap_per_day = d.pop("ping_cap_per_day")
 
         quiet_hours = cast(list[int], d.pop("quiet_hours"))
@@ -79,6 +125,9 @@ class SettingsOut:
             digest_hour=digest_hour,
             interests=interests,
             languages=languages,
+            laya_mode=laya_mode,
+            laya_mode_by_niche=laya_mode_by_niche,
+            laya_mode_default=laya_mode_default,
             ping_cap_per_day=ping_cap_per_day,
             quiet_hours=quiet_hours,
         )

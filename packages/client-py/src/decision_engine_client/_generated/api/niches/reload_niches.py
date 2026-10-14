@@ -54,7 +54,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Any | ReloadResponse]:
-    """Reload niche configs from disk
+    """Reload niche configs from disk and re-apply DB overrides
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -77,7 +77,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> Any | ReloadResponse | None:
-    """Reload niche configs from disk
+    """Reload niche configs from disk and re-apply DB overrides
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -96,7 +96,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Any | ReloadResponse]:
-    """Reload niche configs from disk
+    """Reload niche configs from disk and re-apply DB overrides
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -117,7 +117,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> Any | ReloadResponse | None:
-    """Reload niche configs from disk
+    """Reload niche configs from disk and re-apply DB overrides
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

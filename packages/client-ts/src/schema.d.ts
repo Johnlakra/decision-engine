@@ -167,6 +167,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/niches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List niches */
+        get: operations["list_niches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/niches/reload": {
         parameters: {
             query?: never;
@@ -176,8 +193,26 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reload niche configs from disk */
+        /** Reload niche configs from disk and re-apply DB overrides */
         post: operations["reload_niches"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/niches/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one niche (effective config and its YAML text) */
+        get: operations["get_niche"];
+        /** Save a DB override for a niche (one complete config) */
+        put: operations["put_niche"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -195,6 +230,58 @@ export interface paths {
         get: operations["get_settings"];
         /** Replace tenant settings */
         put: operations["put_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List sources */
+        get: operations["list_sources"];
+        put?: never;
+        /** Add an RSS or Google News source */
+        post: operations["create_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Enable or disable a source */
+        patch: operations["patch_source"];
+        trace?: never;
+    };
+    "/v1/stats/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Today's item counts, LLM budget use and Laya agreement (UTC day) */
+        get: operations["get_stats_today"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -664,6 +751,115 @@ export interface components {
              */
             status: "ok";
         };
+        /** LlmBudgetOut */
+        LlmBudgetOut: {
+            /** Provider */
+            provider: string;
+            /** Requests Limit */
+            requests_limit: number | null;
+            /** Requests Used */
+            requests_used: number;
+            /** Tokens Limit */
+            tokens_limit: number | null;
+            /** Tokens Used */
+            tokens_used: number;
+        };
+        /**
+         * NicheDetail
+         * @example {
+         *       "config": {
+         *         "autonomy": "ask",
+         *         "enabled": true,
+         *         "name": "inbox"
+         *       },
+         *       "name": "inbox",
+         *       "source": "yaml",
+         *       "version": 1,
+         *       "yaml": "name: inbox\nenabled: true\nautonomy: ask\n"
+         *     }
+         */
+        NicheDetail: {
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "yaml" | "db";
+            /** Version */
+            version: number;
+            /** Yaml */
+            yaml: string;
+        };
+        /**
+         * NicheList
+         * @example {
+         *       "data": [
+         *         {
+         *           "auto_actions": [],
+         *           "autonomy": "ask",
+         *           "description": "anything that does not fit another niche",
+         *           "enabled": true,
+         *           "label": "Generic",
+         *           "laya_mode": "shadow",
+         *           "name": "generic",
+         *           "source": "yaml",
+         *           "version": 1
+         *         }
+         *       ]
+         *     }
+         */
+        NicheList: {
+            /** Data */
+            data: components["schemas"]["NicheRow"][];
+        };
+        /**
+         * NicheRow
+         * @example {
+         *       "auto_actions": [],
+         *       "autonomy": "ask",
+         *       "description": "a personal or work email or direct message",
+         *       "enabled": true,
+         *       "label": "Inbox and DMs",
+         *       "laya_mode": "shadow",
+         *       "name": "inbox",
+         *       "source": "yaml",
+         *       "version": 1
+         *     }
+         */
+        NicheRow: {
+            /** Auto Actions */
+            auto_actions: string[];
+            /**
+             * Autonomy
+             * @enum {string}
+             */
+            autonomy: "suggest" | "ask" | "auto";
+            /** Description */
+            description: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Label */
+            label: string;
+            /**
+             * Laya Mode
+             * @enum {string}
+             */
+            laya_mode: "off" | "shadow" | "on";
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "yaml" | "db";
+            /** Version */
+            version: number;
+        };
         /** NormalisedContent */
         NormalisedContent: {
             /** Attachments */
@@ -725,6 +921,18 @@ export interface components {
             interests: string[];
             /** Languages */
             languages: ("en" | "hi" | "pa")[];
+            /**
+             * Laya Mode
+             * @description Absent = unchanged; null = use env LAYA_MODE. Changing to 'on' is refused.
+             */
+            laya_mode?: ("off" | "shadow" | "on") | null;
+            /**
+             * Laya Mode By Niche
+             * @description Absent = unchanged; otherwise a full replacement ({} clears every override).
+             */
+            laya_mode_by_niche?: {
+                [key: string]: "off" | "shadow" | "on";
+            };
             /** Ping Cap Per Day */
             ping_cap_per_day: number;
             /** Quiet Hours */
@@ -741,6 +949,11 @@ export interface components {
          *       "languages": [
          *         "en"
          *       ],
+         *       "laya_mode": "shadow",
+         *       "laya_mode_by_niche": {
+         *         "news_radar": "off"
+         *       },
+         *       "laya_mode_default": "shadow",
          *       "ping_cap_per_day": 3,
          *       "quiet_hours": [
          *         22,
@@ -755,6 +968,24 @@ export interface components {
             interests: string[];
             /** Languages */
             languages: ("en" | "hi" | "pa")[];
+            /**
+             * Laya Mode
+             * @description Stored tenant mode; null = the env default applies
+             */
+            laya_mode: ("off" | "shadow" | "on") | null;
+            /**
+             * Laya Mode By Niche
+             * @description Stored per-niche overrides
+             */
+            laya_mode_by_niche: {
+                [key: string]: "off" | "shadow" | "on";
+            };
+            /**
+             * Laya Mode Default
+             * @description Read-only env LAYA_MODE
+             * @enum {string}
+             */
+            laya_mode_default: "off" | "shadow" | "on";
             /** Ping Cap Per Day */
             ping_cap_per_day: number;
             /** Quiet Hours */
@@ -772,6 +1003,171 @@ export interface components {
             latency_ms?: number | null;
             /** Model */
             model?: string | null;
+        };
+        /**
+         * SourceIn
+         * @example {
+         *       "config": {
+         *         "url": "https://example.com/feed.xml"
+         *       },
+         *       "name": "Example feed",
+         *       "niche_hint": "news_radar",
+         *       "slug": "example-feed",
+         *       "type": "rss"
+         *     }
+         * @example {
+         *       "config": {
+         *         "query": "punjab rice msp"
+         *       },
+         *       "name": "Punjab rice news",
+         *       "slug": "punjab-rice",
+         *       "type": "google_news"
+         *     }
+         */
+        SourceIn: {
+            /**
+             * Config
+             * @description rss: {url}; google_news: {query}
+             */
+            config: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+            /** Niche Hint */
+            niche_hint?: string | null;
+            /** Slug */
+            slug: string;
+            /**
+             * Type
+             * @description Phase 3 accepts rss and google_news only
+             */
+            type: string;
+        };
+        /**
+         * SourceList
+         * @example {
+         *       "data": [
+         *         {
+         *           "enabled": true,
+         *           "error_count": 0,
+         *           "id": "0192f0c2-7a1e-7c3b-9d1e-2f4a5b6c7d8e",
+         *           "items_today": 4,
+         *           "last_polled_at": "2026-10-14T05:00:00Z",
+         *           "name": "Example feed",
+         *           "niche_hint": "news_radar",
+         *           "slug": "example-feed",
+         *           "type": "rss"
+         *         }
+         *       ]
+         *     }
+         */
+        SourceList: {
+            /** Data */
+            data: components["schemas"]["SourceOut"][];
+        };
+        /**
+         * SourceOut
+         * @example {
+         *       "enabled": true,
+         *       "error_count": 0,
+         *       "id": "0192f0c2-7a1e-7c3b-9d1e-2f4a5b6c7d8e",
+         *       "items_today": 4,
+         *       "last_polled_at": "2026-10-14T05:00:00Z",
+         *       "name": "Example feed",
+         *       "niche_hint": "news_radar",
+         *       "slug": "example-feed",
+         *       "type": "rss"
+         *     }
+         */
+        SourceOut: {
+            /** Enabled */
+            enabled: boolean;
+            /** Error Count */
+            error_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items Today */
+            items_today: number;
+            /** Last Polled At */
+            last_polled_at: string | null;
+            /** Name */
+            name: string;
+            /** Niche Hint */
+            niche_hint: string | null;
+            /** Slug */
+            slug: string;
+            /** Type */
+            type: string;
+        };
+        /**
+         * SourcePatch
+         * @description Only ``enabled`` can change (ADR 0010); any other key is a 422.
+         * @example {
+         *       "enabled": false
+         *     }
+         */
+        SourcePatch: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /**
+         * StatsToday
+         * @example {
+         *       "auto_handled": 3,
+         *       "by_niche": {
+         *         "news_radar": 30,
+         *         "unassigned": 12
+         *       },
+         *       "by_status": {
+         *         "awaiting_approval": 6,
+         *         "discarded": 20,
+         *         "done": 16
+         *       },
+         *       "date": "2026-10-14",
+         *       "decided": 9,
+         *       "discarded": 20,
+         *       "items_in": 42,
+         *       "laya_agreement": 0.87,
+         *       "laya_mode": "shadow",
+         *       "llm": [
+         *         {
+         *           "provider": "gemini",
+         *           "requests_limit": 500,
+         *           "requests_used": 120,
+         *           "tokens_used": 84000
+         *         }
+         *       ]
+         *     }
+         */
+        StatsToday: {
+            /** Auto Handled */
+            auto_handled: number;
+            /** By Niche */
+            by_niche: {
+                [key: string]: number;
+            };
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** Date */
+            date: string;
+            /** Decided */
+            decided: number;
+            /** Discarded */
+            discarded: number;
+            /** Items In */
+            items_in: number;
+            /** Laya Agreement */
+            laya_agreement: number | null;
+            /** Laya Mode */
+            laya_mode: string;
+            /** Llm */
+            llm: components["schemas"]["LlmBudgetOut"][];
         };
         /**
          * SubscriptionIn
@@ -1288,6 +1684,26 @@ export interface operations {
             };
         };
     };
+    list_niches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NicheList"];
+                };
+            };
+        };
+    };
     reload_niches: {
         parameters: {
             query?: never;
@@ -1327,6 +1743,100 @@ export interface operations {
                      *           "file": "inbox.yaml",
                      *           "json_pointer": "/autonomy",
                      *           "message": "'yolo' is not one of ['ask', 'auto']"
+                     *         }
+                     *       ],
+                     *       "status": 422,
+                     *       "title": "Niche validation failed",
+                     *       "type": "about:blank"
+                     *     }
+                     */
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    get_niche: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NicheDetail"];
+                };
+            };
+            /** @description Unknown niche */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_niche: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": unknown;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NicheDetail"];
+                };
+            };
+            /** @description API key lacks the admin scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation errors; nothing was saved */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "1 problem; nothing was saved",
+                     *       "errors": [
+                     *         {
+                     *           "json_pointer": "/autonomy",
+                     *           "message": "'yolo' is not one of ['suggest', 'ask', 'auto']"
                      *         }
                      *       ],
                      *       "status": 422,
@@ -1381,12 +1891,144 @@ export interface operations {
                     "application/json": components["schemas"]["SettingsOut"];
                 };
             };
-            /** @description A setting is out of range */
+            /** @description A setting is out of range, a Laya mode names an unknown niche (unknown_niche), or a change to 'on' was asked for (laya_mode_gated) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceList"];
+                };
+            };
+        };
+    };
+    create_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceOut"];
+                };
+            };
+            /** @description API key lacks the admin scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A source with this slug already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsupported type, bad slug, or a config that is not an https feed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patch_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourcePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceOut"];
+                };
+            };
+            /** @description API key lacks the admin scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such source for this tenant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Only 'enabled' (a boolean) may be sent */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_stats_today: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsToday"];
+                };
             };
         };
     };

@@ -1032,6 +1032,220 @@
         "title": "Liveness",
         "type": "object"
       },
+      "LlmBudgetOut": {
+        "properties": {
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "requests_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requests Limit"
+          },
+          "requests_used": {
+            "title": "Requests Used",
+            "type": "integer"
+          },
+          "tokens_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Limit"
+          },
+          "tokens_used": {
+            "title": "Tokens Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "requests_used",
+          "requests_limit",
+          "tokens_used",
+          "tokens_limit"
+        ],
+        "title": "LlmBudgetOut",
+        "type": "object"
+      },
+      "NicheDetail": {
+        "examples": [
+          {
+            "config": {
+              "autonomy": "ask",
+              "enabled": true,
+              "name": "inbox"
+            },
+            "name": "inbox",
+            "source": "yaml",
+            "version": 1,
+            "yaml": "name: inbox\nenabled: true\nautonomy: ask\n"
+          }
+        ],
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "yaml",
+              "db"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "yaml": {
+            "title": "Yaml",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "version",
+          "config",
+          "yaml"
+        ],
+        "title": "NicheDetail",
+        "type": "object"
+      },
+      "NicheList": {
+        "examples": [
+          {
+            "data": [
+              {
+                "auto_actions": [],
+                "autonomy": "ask",
+                "description": "anything that does not fit another niche",
+                "enabled": true,
+                "label": "Generic",
+                "laya_mode": "shadow",
+                "name": "generic",
+                "source": "yaml",
+                "version": 1
+              }
+            ]
+          }
+        ],
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/NicheRow"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "NicheList",
+        "type": "object"
+      },
+      "NicheRow": {
+        "examples": [
+          {
+            "auto_actions": [],
+            "autonomy": "ask",
+            "description": "a personal or work email or direct message",
+            "enabled": true,
+            "label": "Inbox and DMs",
+            "laya_mode": "shadow",
+            "name": "inbox",
+            "source": "yaml",
+            "version": 1
+          }
+        ],
+        "properties": {
+          "auto_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Auto Actions",
+            "type": "array"
+          },
+          "autonomy": {
+            "enum": [
+              "suggest",
+              "ask",
+              "auto"
+            ],
+            "title": "Autonomy",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "laya_mode": {
+            "enum": [
+              "off",
+              "shadow",
+              "on"
+            ],
+            "title": "Laya Mode",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "yaml",
+              "db"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "description",
+          "enabled",
+          "autonomy",
+          "auto_actions",
+          "source",
+          "version",
+          "laya_mode"
+        ],
+        "title": "NicheRow",
+        "type": "object"
+      },
       "NormalisedContent": {
         "properties": {
           "attachments": {
@@ -1186,6 +1400,37 @@
             "title": "Languages",
             "type": "array"
           },
+          "laya_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent = unchanged; null = use env LAYA_MODE. Changing to 'on' is refused.",
+            "title": "Laya Mode"
+          },
+          "laya_mode_by_niche": {
+            "additionalProperties": {
+              "enum": [
+                "off",
+                "shadow",
+                "on"
+              ],
+              "type": "string"
+            },
+            "description": "Absent = unchanged; otherwise a full replacement ({} clears every override).",
+            "maxProperties": 50,
+            "title": "Laya Mode By Niche",
+            "type": "object"
+          },
           "ping_cap_per_day": {
             "maximum": 50.0,
             "minimum": 0.0,
@@ -1223,6 +1468,11 @@
             "languages": [
               "en"
             ],
+            "laya_mode": "shadow",
+            "laya_mode_by_niche": {
+              "news_radar": "off"
+            },
+            "laya_mode_default": "shadow",
             "ping_cap_per_day": 3,
             "quiet_hours": [
               22,
@@ -1254,6 +1504,46 @@
             "title": "Languages",
             "type": "array"
           },
+          "laya_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "off",
+                  "shadow",
+                  "on"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stored tenant mode; null = the env default applies",
+            "title": "Laya Mode"
+          },
+          "laya_mode_by_niche": {
+            "additionalProperties": {
+              "enum": [
+                "off",
+                "shadow",
+                "on"
+              ],
+              "type": "string"
+            },
+            "description": "Stored per-niche overrides",
+            "title": "Laya Mode By Niche",
+            "type": "object"
+          },
+          "laya_mode_default": {
+            "description": "Read-only env LAYA_MODE",
+            "enum": [
+              "off",
+              "shadow",
+              "on"
+            ],
+            "title": "Laya Mode Default",
+            "type": "string"
+          },
           "ping_cap_per_day": {
             "title": "Ping Cap Per Day",
             "type": "integer"
@@ -1271,7 +1561,10 @@
           "digest_hour",
           "ping_cap_per_day",
           "interests",
-          "languages"
+          "languages",
+          "laya_mode",
+          "laya_mode_by_niche",
+          "laya_mode_default"
         ],
         "title": "SettingsOut",
         "type": "object"
@@ -1327,6 +1620,309 @@
           }
         },
         "title": "ShadowRecord",
+        "type": "object"
+      },
+      "SourceIn": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "config": {
+              "url": "https://example.com/feed.xml"
+            },
+            "name": "Example feed",
+            "niche_hint": "news_radar",
+            "slug": "example-feed",
+            "type": "rss"
+          },
+          {
+            "config": {
+              "query": "punjab rice msp"
+            },
+            "name": "Punjab rice news",
+            "slug": "punjab-rice",
+            "type": "google_news"
+          }
+        ],
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "description": "rss: {url}; google_news: {query}",
+            "title": "Config",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "niche_hint": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,59}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Niche Hint"
+          },
+          "slug": {
+            "pattern": "^[a-z][a-z0-9-]{1,59}$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "type": {
+            "description": "Phase 3 accepts rss and google_news only",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "slug",
+          "config"
+        ],
+        "title": "SourceIn",
+        "type": "object"
+      },
+      "SourceList": {
+        "examples": [
+          {
+            "data": [
+              {
+                "enabled": true,
+                "error_count": 0,
+                "id": "0192f0c2-7a1e-7c3b-9d1e-2f4a5b6c7d8e",
+                "items_today": 4,
+                "last_polled_at": "2026-10-14T05:00:00Z",
+                "name": "Example feed",
+                "niche_hint": "news_radar",
+                "slug": "example-feed",
+                "type": "rss"
+              }
+            ]
+          }
+        ],
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SourceOut"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SourceList",
+        "type": "object"
+      },
+      "SourceOut": {
+        "examples": [
+          {
+            "enabled": true,
+            "error_count": 0,
+            "id": "0192f0c2-7a1e-7c3b-9d1e-2f4a5b6c7d8e",
+            "items_today": 4,
+            "last_polled_at": "2026-10-14T05:00:00Z",
+            "name": "Example feed",
+            "niche_hint": "news_radar",
+            "slug": "example-feed",
+            "type": "rss"
+          }
+        ],
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "error_count": {
+            "title": "Error Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items_today": {
+            "title": "Items Today",
+            "type": "integer"
+          },
+          "last_polled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Polled At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "niche_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Niche Hint"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "name",
+          "slug",
+          "enabled",
+          "niche_hint",
+          "last_polled_at",
+          "error_count",
+          "items_today"
+        ],
+        "title": "SourceOut",
+        "type": "object"
+      },
+      "SourcePatch": {
+        "additionalProperties": false,
+        "description": "Only ``enabled`` can change (ADR 0010); any other key is a 422.",
+        "examples": [
+          {
+            "enabled": false
+          }
+        ],
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "SourcePatch",
+        "type": "object"
+      },
+      "StatsToday": {
+        "examples": [
+          {
+            "auto_handled": 3,
+            "by_niche": {
+              "news_radar": 30,
+              "unassigned": 12
+            },
+            "by_status": {
+              "awaiting_approval": 6,
+              "discarded": 20,
+              "done": 16
+            },
+            "date": "2026-10-14",
+            "decided": 9,
+            "discarded": 20,
+            "items_in": 42,
+            "laya_agreement": 0.87,
+            "laya_mode": "shadow",
+            "llm": [
+              {
+                "provider": "gemini",
+                "requests_limit": 500,
+                "requests_used": 120,
+                "tokens_used": 84000
+              }
+            ]
+          }
+        ],
+        "properties": {
+          "auto_handled": {
+            "title": "Auto Handled",
+            "type": "integer"
+          },
+          "by_niche": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Niche",
+            "type": "object"
+          },
+          "by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Status",
+            "type": "object"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "decided": {
+            "title": "Decided",
+            "type": "integer"
+          },
+          "discarded": {
+            "title": "Discarded",
+            "type": "integer"
+          },
+          "items_in": {
+            "title": "Items In",
+            "type": "integer"
+          },
+          "laya_agreement": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Laya Agreement"
+          },
+          "laya_mode": {
+            "title": "Laya Mode",
+            "type": "string"
+          },
+          "llm": {
+            "items": {
+              "$ref": "#/components/schemas/LlmBudgetOut"
+            },
+            "title": "Llm",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "items_in",
+          "decided",
+          "auto_handled",
+          "discarded",
+          "by_status",
+          "by_niche",
+          "llm",
+          "laya_mode",
+          "laya_agreement"
+        ],
+        "title": "StatsToday",
         "type": "object"
       },
       "SubscriptionIn": {
@@ -2083,6 +2679,27 @@
         ]
       }
     },
+    "/v1/niches": {
+      "get": {
+        "operationId": "list_niches",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NicheList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List niches",
+        "tags": [
+          "niches"
+        ]
+      }
+    },
     "/v1/niches/reload": {
       "post": {
         "operationId": "reload_niches",
@@ -2121,7 +2738,127 @@
             "description": "Validation errors; the previous niche set is still served"
           }
         },
-        "summary": "Reload niche configs from disk",
+        "summary": "Reload niche configs from disk and re-apply DB overrides",
+        "tags": [
+          "niches"
+        ]
+      }
+    },
+    "/v1/niches/{name}": {
+      "get": {
+        "operationId": "get_niche",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NicheDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown niche"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read one niche (effective config and its YAML text)",
+        "tags": [
+          "niches"
+        ]
+      },
+      "put": {
+        "operationId": "put_niche",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "examples": [
+                  {
+                    "actions": [
+                      "create_task"
+                    ],
+                    "auto_actions": [],
+                    "autonomy": "ask",
+                    "description": "a news story or article worth reading, saving or acting on",
+                    "enabled": true,
+                    "label": "News radar",
+                    "name": "news_radar",
+                    "prompt": "Summarize the story and decide whether the owner should read, save or skip it."
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NicheDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "API key lacks the admin scope"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "detail": "1 problem; nothing was saved",
+                  "errors": [
+                    {
+                      "json_pointer": "/autonomy",
+                      "message": "'yolo' is not one of ['suggest', 'ask', 'auto']"
+                    }
+                  ],
+                  "status": 422,
+                  "title": "Niche validation failed",
+                  "type": "about:blank"
+                }
+              }
+            },
+            "description": "Validation errors; nothing was saved"
+          }
+        },
+        "summary": "Save a DB override for a niche (one complete config)",
         "tags": [
           "niches"
         ]
@@ -2171,12 +2908,144 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "A setting is out of range"
+            "description": "A setting is out of range, a Laya mode names an unknown niche (unknown_niche), or a change to 'on' was asked for (laya_mode_gated)"
           }
         },
         "summary": "Replace tenant settings",
         "tags": [
           "settings"
+        ]
+      }
+    },
+    "/v1/sources": {
+      "get": {
+        "operationId": "list_sources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List sources",
+        "tags": [
+          "sources"
+        ]
+      },
+      "post": {
+        "operationId": "create_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "API key lacks the admin scope"
+          },
+          "409": {
+            "description": "A source with this slug already exists"
+          },
+          "422": {
+            "description": "Unsupported type, bad slug, or a config that is not an https feed"
+          }
+        },
+        "summary": "Add an RSS or Google News source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/v1/sources/{source_id}": {
+      "patch": {
+        "operationId": "patch_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourcePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "API key lacks the admin scope"
+          },
+          "404": {
+            "description": "No such source for this tenant"
+          },
+          "422": {
+            "description": "Only 'enabled' (a boolean) may be sent"
+          }
+        },
+        "summary": "Enable or disable a source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/v1/stats/today": {
+      "get": {
+        "operationId": "get_stats_today",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsToday"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Today's item counts, LLM budget use and Laya agreement (UTC day)",
+        "tags": [
+          "stats"
         ]
       }
     },
