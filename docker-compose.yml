@@ -68,6 +68,27 @@ services:
       api:
         condition: service_healthy
 
+  # Feed polls and Telegram notifier pass, every 5 min. A failed pass prints its traceback and the
+  # loop goes on: one bad feed or a Telegram outage must not stop the next pass.
+  scheduler:
+    <<: *api-base
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          python -m app.connectors.schedule || true
+          python -m app.connectors.notify || true
+          sleep 300
+        done
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
   laya:
     profiles: ["laya"]
     build:

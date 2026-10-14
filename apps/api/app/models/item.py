@@ -65,6 +65,8 @@ class Item(IdMixin, TenantMixin, TimestampMixin, Base):
     risk: Mapped[str | None] = mapped_column(Text)
     urgency: Mapped[int | None] = mapped_column(SmallInteger)
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # FR-43 ping
+    digested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # FR-43 digest
     related_to: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("items.id", ondelete="SET NULL")
     )
