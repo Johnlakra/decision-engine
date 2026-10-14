@@ -7,13 +7,13 @@ JSON columns are `jsonb`. Enums are `text` + CHECK (easier migrations than PG en
 | Table | Key columns | Notes |
 |---|---|---|
 | `tenants` | name, timezone (`Asia/Kolkata`), plan | one row at MVP |
-| `tenant_settings` | tenant_id PK, settings jsonb | laya_mode, autonomy overrides, digest_hour, quiet_hours, interests, languages |
+| `tenant_settings` | tenant_id PK, settings jsonb | Built: digest_hour, quiet_hours, ping_cap_per_day, interests, languages, digest_sent_on (API writes the first five). **PLANNED (Phase 3 step 3.5-B4, ADR 0008):** the API writes `laya_mode` (`off`/`shadow`/`on`, absent = env) and `laya_mode_by_niche` {name: mode}. `triage/modes.resolve_mode` already reads these keys; nothing writes them yet except direct SQL. API writes of `on` stay gated |
 | `users` | email unique, name, role (`owner`/`member`/`expert`) | web login allow-list mirror |
 | `api_keys` | prefix unique, hash, scopes text[], name, last_used_at, revoked_at | secret shown once |
 | `sources` | type, name, slug unique per tenant, config jsonb, secret_enc, oauth_enc, niche_hint, sensitivity, enabled, cursor jsonb, last_polled_at, error_count | tokens Fernet-encrypted |
 | `items` | source, source_ref, received_at, status, raw jsonb, content jsonb, language, sensitivity, niche, triage jsonb, decision jsonb, risk, urgency smallint, deadline_at, related_to uuid, embedding vector(768) null, laya_mode, error text, attempts, hints jsonb null, callback_url text null | UNIQUE(tenant_id, source, source_ref); idx (tenant_id, status, urgency desc, deadline_at); idx `ix_items_tenant_created` (tenant_id, created_at) for the daily cap; hnsw on embedding. `hints`/`callback_url` (migration 0002, ADR 0004) are never exposed in API output |
 | `jobs` | kind (`process`,`action`,`webhook`,`poll`,`upload`,`digest`), item_id null, payload jsonb, status (`queued`,`running`,`done`,`failed`), run_at, attempts, max_attempts (5), locked_by, locked_at, last_error | partial idx on (run_at) where status='queued'; claim via `FOR UPDATE SKIP LOCKED` |
-| `niches` | name, config jsonb, version int, enabled, source (`yaml`/`db`) | DB rows override YAML of the same name |
+| `niches` | name, config jsonb, version int, enabled, source (`yaml`/`db`) | Table exists (migration 0001) and has no rows. **PLANNED (Phase 3 step 3.5-B1, ADR 0009):** a DB row's `config` is a complete niche that replaces the YAML of the same name. `version` +1 per PUT, `enabled` mirrors `config.enabled`. Processes resync on a `(count, sum(version), max(updated_at))` change. Until then the registry reads YAML only |
 | `decisions` | item_id, verdict, option, edits jsonb, decided_by (`human`/`auto`/`llm`), user_id, latency_ms, undone_at | append-only |
 | `feedback` | item_id, niche, kind (`decision`,`triage_correction`,`vote`), state_text, questions jsonb, gold jsonb, label_source (`human`/`llm`), used_for_training bool | the Laya training set |
 | `actions_log` | item_id, action, params jsonb, idem_key unique, status, result jsonb, reversible, undone_at | |

@@ -10,6 +10,22 @@ Pagination: cursor (`?cursor=<opaque>&limit=50`, max 200) → `{data: [...], nex
 `Content-Length` first, then counts streamed bytes, so an oversized body is cut off without being buffered.
 The `413` is added by middleware, so it is not listed in `/openapi.json`. Its `type` is `about:blank`.
 
+## Status: what is built today
+Checked against `apps/api/app/api/v1/*.py` and `apps/api/app/schemas/settings.py` (2026-10-14).
+
+- **Built:** `POST /v1/items`, `POST /v1/items/bulk`, `GET /v1/items`, `GET /v1/items/{id}`,
+  `GET /v1/items/{id}/activity`, `POST /v1/items/{id}/decision`, `POST /v1/decide`,
+  `GET /v1/settings`, `PUT /v1/settings` (five fields only), `POST /v1/niches/reload`,
+  `POST|GET|DELETE /v1/subscriptions`, `GET /v1/feedback/export`, `POST /v1/telegram/webhook`,
+  `GET /health`, `GET /health/deep`.
+- **PLANNED (Phase 3 step 3.5-B, not built yet):** the Laya mode fields in Settings, the Niches
+  list/get/put routes, the Sources routes, and `GET /v1/stats/today`. Each one is marked below.
+- **NOT BUILT (no route yet):** `POST /v1/items/{id}/undo` (LATER, ADR 0007), `POST /v1/items/{id}/retry`,
+  `POST /v1/items/{id}/retriage`, `POST /v1/uploads`, `GET /v1/feedback/shadow-report`, inbound
+  `POST /v1/webhooks/{source_slug}`, and the sources OAuth routes.
+
+Text under a **PLANNED** or **NOT BUILT** label is the target contract. Clients must not call it until the route ships.
+
 ## Items
 ### `POST /v1/items` — scope `items:write` (FR-01, FR-02)
 ```json
@@ -42,6 +58,9 @@ A failed row carries `error` as a short `field: message` string (first validatio
 
 ### `GET /v1/items?status=awaiting_approval&niche=inbox&source=gmail&q=text&cursor=…`
 ### `GET /v1/items/{id}` → full DecisionItem (schemas/decision_item.schema.json)
+### `GET /v1/items/{id}/activity` — built (scope `items:read`)
+→ `{"data": [{"action", "status", "created_at", "reversible", "undone_at"}]}`, newest first, capped at the server limit.
+`404` for an unknown item or another tenant's item.
 ### `POST /v1/items/{id}/decision` — resume the approval interrupt (FR-33)
 ```json
 { "verdict": "approve",                 // approve | reject | edit | snooze
@@ -56,9 +75,12 @@ also accept `"acting"`, reserved for long-running actions in later phases.
 `422` when `option` is not an option id, or `snooze` lacks a future `snooze_until`. `404` for another tenant's item.
 `409` problem+json when the item is not `awaiting_approval` **or** another request/worker holds the item
 (`type: .../not-awaiting-approval` or `.../item-busy`). A double submit gives one `200` and one `409`.
-### `POST /v1/items/{id}/undo` — within 10 s of a decision (FR-53)
-### `POST /v1/items/{id}/retry` — failed items
-### `POST /v1/items/{id}/retriage` — rerun normalise+triage (after a niche change)
+### `POST /v1/items/{id}/undo` — LATER, not built (ADR 0007)
+FR-53 undo is a client-side hold: queue clients keep a decision for 10 s and only then send one
+`POST /v1/items/{id}/decision`. Undo inside the window sends nothing. A `409` after the window means another client
+already handled the item.
+### `POST /v1/items/{id}/retry` — NOT BUILT yet — failed items
+### `POST /v1/items/{id}/retriage` — NOT BUILT yet — rerun normalise+triage (after a niche change)
 
 ## Synchronous decisions
 ### `POST /v1/decide` — scope `decide` (FR-35)
@@ -103,6 +125,8 @@ also accept `"acting"`, reserved for long-running actions in later phases.
   (default 30).
 
 ## Uploads (FR-04)
+**NOT BUILT yet.** No `/v1/uploads` route exists. The contract below is the target.
+
 `POST /v1/uploads` multipart `file` + `mapping` JSON:
 ```json
 {"source": "csv", "source_ref_column": "id", "title": "subject", "body": "message",
@@ -110,16 +134,62 @@ also accept `"acting"`, reserved for long-running actions in later phases.
 ```
 → `202 {"upload_id": "…"}` · `GET /v1/uploads/{id}` → `{status, total, done, failed, errors:[…≤50]}`
 
-## Niches (FR-70, FR-72)
-- `GET /v1/niches` · `GET /v1/niches/{name}` (effective config: YAML + DB override)
-- `PUT /v1/niches/{name}` scope `admin` — body = niche config; validated against schemas/niche.schema.json
-- `POST /v1/niches/draft {"description": "decide which job offers to apply to"}` → draft config (not saved)
-- `POST /v1/niches/reload` scope `admin`
+## Settings (FR-43, FR-23; ADR 0008)
+**Built today:** the five fields below. Nothing else.
+- `GET /v1/settings` scope `items:read` → `SettingsOut` (the five fields).
+- `PUT /v1/settings` scope `admin`. Body `SettingsIn` (`extra` keys → `422`). It merges into the stored settings and
+  keeps keys it does not own. A request that sends `laya_mode` today gets `422`, because the key is unknown.
+```json
+{ "quiet_hours": [22, 7], "digest_hour": 8, "ping_cap_per_day": 3, "interests": ["ai"], "languages": ["en"] }
+```
+→ `200 SettingsOut` (the same five fields).
+- `422` (`errors[{field, message, code}]`): out-of-range values, or any unknown key.
+
+**PLANNED (Phase 3 step 3.5-B, not built yet): Laya mode fields (step 3.5-B4, ADR 0008).** Not live. The fields
+below are the target contract. `triage/modes.resolve_mode` already reads the stored keys, but this API cannot write them yet.
+```json
+{ "laya_mode": "shadow",                        // optional; "off"|"shadow"|"on"|null. Absent = unchanged, null = use env LAYA_MODE
+  "laya_mode_by_niche": {"news_radar": "off"} } // optional; full replacement of the map (≤ 50); absent = unchanged
+```
+→ `200 SettingsOut` would add `laya_mode` (stored value or `null`), `laya_mode_by_niche` (stored map) and
+`laya_mode_default` (env `LAYA_MODE`, read-only).
+- Planned `422`: unknown niche in the map (`code: unknown_niche`). A change **to** `on` → `type:
+  https://decision-engine/problems/laya-mode-gated`, `code: laya_mode_gated`. `on` is accepted only as an unchanged
+  re-send of the stored value; going to `on` needs the LAYA.md §5 gate and an ADR. `on` → `off`/`shadow` is always allowed.
+
+## Niches (FR-70, FR-72; ADR 0009, ADR 0011)
+**PLANNED (Phase 3 step 3.5-B, not built yet).** The list, get and put routes below are not live.
+**Built today:** `POST /v1/niches/reload` only. It reloads the YAML files. The DB overrides are not read yet.
+
+- **PLANNED (Phase 3 step 3.5-B, not built yet): `GET /v1/niches`** scope `items:read` → `{"data": [{"name", "label",
+  "description", "enabled", "autonomy", "auto_actions", "source": "yaml"|"db", "version", "laya_mode"}]}`.
+  `laya_mode` is the effective mode (read-only).
+- **PLANNED (Phase 3 step 3.5-B, not built yet): `GET /v1/niches/{name}`** scope `items:read` → `{"name", "source", "version", "config":
+  {…effective…}, "yaml": "…"}` (`yaml` is the file text, or a dump of the DB config). `404` unknown name.
+- **PLANNED (Phase 3 step 3.5-B, not built yet): `PUT /v1/niches/{name}`** scope `admin`. Body = one complete niche config as a JSON object.
+  It replaces the YAML niche of that name in the DB (no merge). The server sets `version`. → `200` same shape as GET.
+  Every process sees it on its next unit of work.
+  `422` problem+json `{"title": "Niche validation failed", "errors": [{"json_pointer", "message"}]}` (all schema errors,
+  sorted, ≤ 20; nothing is saved) for: schema violations; `/name` ≠ path; `generic` with `/enabled` false; non-empty
+  `/steps`; unregistered `/actions/i` or `/tools/i`; `/auto_actions/i` not in `actions`; weakening the shipped YAML's
+  `expert_review.always` + `autonomy: ask` or `sensitivity: private`. Validation is server-side only (no dry-run route).
+- `POST /v1/niches/draft {"description": "decide which job offers to apply to"}` → draft config (not saved). NOT BUILT (LATER, 8.4).
+- `POST /v1/niches/reload` scope `admin`. Built: it reloads the YAML. The planned part is re-applying the DB overrides (ADR 0009).
 
 ## Sources & connectors
-- `GET/POST /v1/sources` `{type: "rss"|"gmail"|"instagram"|"webhook"|"telegram"|…, name, config, niche_hint?, enabled}`
-- `GET /v1/sources/{id}/oauth/start` → redirect (gmail, instagram); `/oauth/callback`
-- `POST /v1/webhooks/{source_slug}` — inbound; header `X-DE-Signature: t=<unix>,v1=<hex hmac_sha256(secret, t + "." + body)>` (FR-91); provider-native verification for Meta (`X-Hub-Signature-256`) and Telegram (secret token header)
+**PLANNED (Phase 3 step 3.5-B, not built yet).** The list, add and PATCH routes below are not live.
+**Built today:** no `/v1/sources` route. The routes below are planned or not built, as marked.
+
+- **PLANNED (Phase 3 step 3.5-B, not built yet): `GET /v1/sources`** scope `items:read` → `{"data": [{"id", "type",
+  "name", "slug", "enabled", "niche_hint", "last_polled_at", "error_count", "items_today"}]}`. It never returns `config`,
+  `secret_enc` or `oauth_enc`.
+- **PLANNED (Phase 3 step 3.5-B, not built yet): `POST /v1/sources`** scope `admin` `{type, name, slug, config, niche_hint?}`. Phase 3 accepts
+  `type ∈ {rss, google_news}` only (others → `422`). The URL is https only; `409` for a duplicate slug.
+- **PLANNED (Phase 3 step 3.5-B, not built yet, ADR 0010): `PATCH /v1/sources/{id}`** scope `admin`. Body `{"enabled": true|false}` only (any
+  other key → `422`). → `200` one source row (as in GET). `404` for an unknown id or another tenant's source. Idempotent.
+- NOT BUILT (later phases): `POST /v1/sources` gains `gmail|instagram|webhook|telegram|…`
+- NOT BUILT (later phases): `GET /v1/sources/{id}/oauth/start` → redirect (gmail, instagram); `/oauth/callback`
+- NOT BUILT (later phases): `POST /v1/webhooks/{source_slug}` — inbound; header `X-DE-Signature: t=<unix>,v1=<hex hmac_sha256(secret, t + "." + body)>` (FR-91); provider-native verification for Meta (`X-Hub-Signature-256`) and Telegram (secret token header)
 - `POST /v1/telegram/webhook` — Telegram Bot API updates (FR-94). Auth is the header `X-Telegram-Bot-Api-Secret-Token`, which must equal `TELEGRAM_WEBHOOK_SECRET` (403 otherwise). Only chats in `TELEGRAM_ALLOWED_CHAT_IDS` are used; others are ignored and logged. Forwarded text becomes a private `telegram` item; button presses `de:a:<id>` (approve, recommended option) and `de:r:<id>` (reject) resume the item. Always 200 for a valid update.
 
 ## Outbound webhooks (FR-42)
@@ -142,10 +212,11 @@ also accept `"acting"`, reserved for long-running actions in later phases.
 
 ## Feedback & learning
 - `GET /v1/feedback/export?niche=news_radar&format=laya_train|laya_eval&since=…` → JSONL stream (FR-80)
-- `GET /v1/feedback/shadow-report?niche=…&days=14` → per-cutoff table (FR-81)
+- `GET /v1/feedback/shadow-report?niche=…&days=14` → per-cutoff table (FR-81). NOT BUILT yet (only `/export` exists).
 
 ## Stats
-- `GET /v1/stats/today` → counts by status/niche, LLM budget used per provider, Laya mode and health
+- **PLANNED (Phase 3 step 3.5-B3, not built yet): `GET /v1/stats/today`** → counts by status/niche, LLM budget used per
+  provider, Laya mode and health
 
 ## Health
 - `GET /health` (no auth, liveness) · `GET /health/deep` (auth) → `{db, redis, laya, llm:{gemini:…}, queue_depth, oldest_job_age_s}`

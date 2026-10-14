@@ -1,46 +1,27 @@
 import type { components } from "@decision-engine/client";
-import type { Verdict } from "@/lib/queue/undo";
+import { requestJson } from "@/lib/api/request";
 
-/** Browser-side calls through the server proxy (`/api/v1`). No API key is ever sent from here. */
+export { ApiError } from "@/lib/api/request";
 
 export type ItemOut = components["schemas"]["DecisionItemOut"];
 export type ItemPage = components["schemas"]["ItemPage"];
+export type ActivityOut = components["schemas"]["ActivityOut"];
+export type DecisionBody = components["schemas"]["DecisionIn"];
 
-export const API_BASE = "/api/v1";
 export const PENDING_LIMIT = 50;
 
-export class ApiError extends Error {
-  readonly status: number;
-
-  constructor(status: number) {
-    super(`API request failed with status ${status}`);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
-
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-    },
-  });
-  if (!response.ok) {
-    throw new ApiError(response.status);
-  }
-  return (await response.json()) as T;
-}
-
 export function fetchPendingItems(): Promise<ItemPage> {
-  return requestJson<ItemPage>(`/items?status=awaiting_approval&limit=${PENDING_LIMIT}`);
+  return requestJson<ItemPage>("GET", `/items?status=awaiting_approval&limit=${PENDING_LIMIT}`);
 }
 
-export function postDecision(itemId: string, verdict: Verdict, option?: string): Promise<unknown> {
-  return requestJson(`/items/${encodeURIComponent(itemId)}/decision`, {
-    method: "POST",
-    body: JSON.stringify(option ? { verdict, option } : { verdict }),
-  });
+export function fetchItem(itemId: string): Promise<ItemOut> {
+  return requestJson<ItemOut>("GET", `/items/${encodeURIComponent(itemId)}`);
+}
+
+export function fetchActivity(itemId: string): Promise<ActivityOut> {
+  return requestJson<ActivityOut>("GET", `/items/${encodeURIComponent(itemId)}/activity`);
+}
+
+export function postDecisionBody(itemId: string, body: DecisionBody): Promise<unknown> {
+  return requestJson("POST", `/items/${encodeURIComponent(itemId)}/decision`, body);
 }

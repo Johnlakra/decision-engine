@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchPendingItems, postDecision, type ItemOut } from "@/lib/api/items";
+import { fetchPendingItems, postDecisionBody, type ItemOut } from "@/lib/api/items";
 import { translate, type Locale } from "@/lib/i18n";
 import { queueActionForKey, type QueueAction } from "@/lib/queue/keys";
 import {
@@ -78,7 +78,10 @@ export function QueueView({ locale }: QueueViewProps) {
         inFlight.current.add(due.itemId);
         pendingRef.current = cancelDecision(pendingRef.current, due.itemId);
         setPending(pendingRef.current);
-        postDecision(due.itemId, due.verdict, due.option)
+        postDecisionBody(
+          due.itemId,
+          due.option ? { verdict: due.verdict, option: due.option } : { verdict: due.verdict },
+        )
           .catch(() => setFailed(true))
           .finally(() => {
             inFlight.current.delete(due.itemId);

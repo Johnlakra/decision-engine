@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ItemOut } from "@/lib/api/items";
 import { translate, type Locale } from "@/lib/i18n";
 import { confidenceLabel } from "@/lib/queue/confidence";
@@ -43,7 +44,9 @@ export function QueueCard({ item, locale, disabled, onChoose, onReject }: QueueC
         <UrgencyBadge urgency={item.urgency} locale={locale} />
       </header>
       <h2 id="focused-title" className="mt-2 text-[17px] font-semibold text-text">
-        {item.content?.title ?? "—"}
+        <Link href={`/items/${item.id}`} className="underline-offset-4 hover:underline">
+          {item.content?.title ?? "—"}
+        </Link>
       </h2>
       {summary ? <p className="mt-1 line-clamp-2 text-[13px] text-muted">{summary}</p> : null}
 

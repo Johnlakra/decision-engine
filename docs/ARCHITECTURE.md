@@ -134,7 +134,15 @@ class Connector(Protocol):
 - **Errors**: RFC 9457 problem+json for API errors.
 - **IDs**: UUIDv7 (`uuid6` package or Python 3.14 `uuid.uuid7` if available).
 - **Time**: all UTC; tenant timezone (default Asia/Kolkata) only for display, quiet hours, digests.
-- **Feature flags**: env + `tenant_settings` JSONB (laya_mode, autonomy overrides, digest hour).
+- **Feature flags**: env + `tenant_settings` JSONB (digest hour, and `laya_mode` / `laya_mode_by_niche`). Built today:
+  the env `LAYA_MODE` and the worker reads of the stored `laya_mode` keys (`triage/modes.py`). **PLANNED (Phase 3 step
+  3.5-B4, ADR 0008):** the API writes only `off`/`shadow`, and `on` is gated.
+- **Niche overrides** (ADR 0009). **PLANNED (Phase 3 step 3.5-B1), not built:** `niches` rows replace the YAML niche
+  of the same name. Each process keeps its own registry and calls `niches.overrides.sync_registry()` at the start of
+  each unit of work (worker: once per non-empty claimed batch; API: decide, decision, niches routes). It reloads when
+  `(count, sum(version), max(updated_at))` changes. Idle processes run no query. Today `NicheRegistry.reload(overrides=…)`
+  accepts the argument but ignores it, and there is no `niches/overrides.py`.
+- **Undo** (ADR 0007): a client-side 10 s hold before `POST /items/{id}/decision`, with no server state.
 - **Rate limits** (FR-07): Redis fixed window when `REDIS_URL` is set, else an in-process window, so the limit
   is per process; more than one API process requires Redis (ADR 0002). The 5,000 items/day cap is **per tenant**,
   a count of today's (UTC) `items` rows, soft (ADR 0004).

@@ -7,9 +7,14 @@ export const ALLOWED_LIST_PARAMS = ["status", "niche", "source", "q", "cursor", 
 export const MAX_LIST_LIMIT = 100;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export type ProxyMethod = "GET" | "POST" | "PUT";
+
 export type ProxyPlan =
-  | { ok: true; method: "GET" | "POST"; path: string; search: string }
+  | { ok: true; method: ProxyMethod; path: string; search: string }
   | { ok: false; status: 404 | 405 };
+
+/** Methods that carry a JSON body through the proxy. */
+export const BODY_METHODS: readonly ProxyMethod[] = ["POST", "PUT"];
 
 function isUuid(value: string | undefined): value is string {
   return value !== undefined && UUID_PATTERN.test(value);
@@ -35,32 +40,39 @@ export function listSearch(params: URLSearchParams): string {
   return query ? `?${query}` : "";
 }
 
+function only(method: string, allowed: ProxyMethod, plan: ProxyPlan): ProxyPlan {
+  return method === allowed ? plan : { ok: false, status: 405 };
+}
+
 export function planProxy(
   method: string,
   segments: readonly string[],
   params: URLSearchParams,
 ): ProxyPlan {
   const [resource, id, action, ...rest] = segments;
+  if (resource === "settings" && segments.length === 1) {
+    const path = "/v1/settings";
+    return method === "GET" || method === "PUT"
+      ? { ok: true, method, path, search: "" }
+      : { ok: false, status: 405 };
+  }
   if (resource !== "items" || rest.length > 0) {
     return { ok: false, status: 404 };
   }
   if (segments.length === 1) {
-    return method === "GET"
-      ? { ok: true, method: "GET", path: "/v1/items", search: listSearch(params) }
-      : { ok: false, status: 405 };
+    return only(method, "GET", { ok: true, method: "GET", path: "/v1/items", search: listSearch(params) });
   }
   if (!isUuid(id)) {
     return { ok: false, status: 404 };
   }
   if (segments.length === 2) {
-    return method === "GET"
-      ? { ok: true, method: "GET", path: `/v1/items/${id}`, search: "" }
-      : { ok: false, status: 405 };
+    return only(method, "GET", { ok: true, method: "GET", path: `/v1/items/${id}`, search: "" });
   }
-  if (action === "decision" && segments.length === 3) {
-    return method === "POST"
-      ? { ok: true, method: "POST", path: `/v1/items/${id}/decision`, search: "" }
-      : { ok: false, status: 405 };
+  if (segments.length === 3 && action === "decision") {
+    return only(method, "POST", { ok: true, method: "POST", path: `/v1/items/${id}/decision`, search: "" });
+  }
+  if (segments.length === 3 && action === "activity") {
+    return only(method, "GET", { ok: true, method: "GET", path: `/v1/items/${id}/activity`, search: "" });
   }
   return { ok: false, status: 404 };
 }

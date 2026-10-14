@@ -48,6 +48,48 @@ describe("planProxy", () => {
   });
 });
 
+describe("planProxy settings and activity", () => {
+  it("allows GET and PUT on /settings with the method preserved and no query", () => {
+    const params = new URLSearchParams("evil=1");
+    expect(planProxy("GET", ["settings"], params)).toEqual({
+      ok: true,
+      method: "GET",
+      path: "/v1/settings",
+      search: "",
+    });
+    expect(planProxy("PUT", ["settings"], params)).toEqual({
+      ok: true,
+      method: "PUT",
+      path: "/v1/settings",
+      search: "",
+    });
+  });
+
+  it("answers 405 for other methods on /settings and 404 for sub-paths", () => {
+    for (const method of ["POST", "DELETE", "PATCH"]) {
+      expect(planProxy(method, ["settings"], NONE)).toEqual({ ok: false, status: 405 });
+    }
+    expect(planProxy("GET", ["settings", "x"], NONE)).toEqual({ ok: false, status: 404 });
+  });
+
+  it("allows GET only on an item's activity", () => {
+    expect(planProxy("GET", ["items", ITEM_ID, "activity"], NONE)).toEqual({
+      ok: true,
+      method: "GET",
+      path: `/v1/items/${ITEM_ID}/activity`,
+      search: "",
+    });
+    expect(planProxy("POST", ["items", ITEM_ID, "activity"], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("GET", ["items", "nope", "activity"], NONE)).toEqual({ ok: false, status: 404 });
+  });
+
+  it("allows POST only on decision and refuses PUT on items", () => {
+    expect(planProxy("PUT", ["items", ITEM_ID, "decision"], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("PUT", ["items", ITEM_ID], NONE)).toEqual({ ok: false, status: 405 });
+    expect(planProxy("GET", ["items", ITEM_ID, "other"], NONE)).toEqual({ ok: false, status: 404 });
+  });
+});
+
 describe("listSearch", () => {
   it("drops empty values and clamps a bad limit to one", () => {
     expect(listSearch(new URLSearchParams("status=&limit=abc"))).toBe("?limit=1");

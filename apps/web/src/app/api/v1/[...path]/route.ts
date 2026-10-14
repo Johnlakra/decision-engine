@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { planProxy } from "@/lib/proxy/route-policy";
+import { canProxy } from "@/lib/auth/admin";
+import { parseAllowList } from "@/lib/auth/allow-list";
+import { BODY_METHODS, planProxy } from "@/lib/proxy/route-policy";
 
 /** Server-side proxy to the Decision Engine API. The API key never leaves the server. */
 
@@ -31,12 +33,16 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
   if (!plan.ok) {
     return errorResponse(plan.status, plan.status === 405 ? "Method not allowed" : "Not found");
   }
+  const admins = parseAllowList(process.env.ADMIN_EMAILS);
+  if (!canProxy(plan.method, path, session.user?.email, admins)) {
+    return errorResponse(403, "Admin only");
+  }
   const base = process.env.DE_API_URL;
   const apiKey = process.env.DE_API_KEY;
   if (!base || !apiKey) {
     return errorResponse(503, "API is not configured");
   }
-  const body = plan.method === "POST" ? await readBoundedBody(request) : undefined;
+  const body = BODY_METHODS.includes(plan.method) ? await readBoundedBody(request) : undefined;
   if (body === null) {
     return errorResponse(413, "Request body too large");
   }
@@ -62,4 +68,4 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
   }
 }
 
-export { forward as GET, forward as POST };
+export { forward as GET, forward as POST, forward as PUT };
