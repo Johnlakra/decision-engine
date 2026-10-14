@@ -21,6 +21,7 @@ from app.db.session import get_session
 from app.graph import oneshot
 from app.ingest.service import seconds_until_utc_midnight
 from app.llm.errors import LLMUnavailable, NoPrivateProvider
+from app.niches.overrides import sync_registry
 from app.schemas.triage import Answer, ShadowRecord
 from app.security.api_keys import Principal
 from app.triage import service as triage_service
@@ -117,6 +118,7 @@ async def decide(
     principal: Caller,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DecideOut | JSONResponse:
+    await sync_registry(session)  # DB niche overrides (ADR 0009)
     settings = get_settings()
     if not await try_consume_decide_call(
         session, principal.tenant_id, settings.decide_daily_limit_per_tenant

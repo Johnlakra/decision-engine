@@ -99,6 +99,7 @@ async def upsert_feed(
     """Create or update one feed source. Returns True when a new row was created.
 
     A changed URL or query resets the HTTP cache cursor so the next poll is a full fetch.
+    An existing row keeps its ``enabled`` value; only a new row starts enabled (ADR 0010).
     """
     config = spec.config()
     feed_url(spec.type, config)  # fail early on an unusable config (FeedConfigError)
@@ -124,5 +125,5 @@ async def upsert_feed(
     row.name = spec.name
     row.config = config
     row.niche_hint = catalog.niche_hint
-    row.enabled = True
+    # `enabled` is deliberately left alone: a user's switch (PATCH /v1/sources) survives a re-load.
     return False

@@ -9,12 +9,15 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope
 from app.core.errors import ProblemError
+from app.db.session import get_session
 from app.graph import run
 from app.graph.errors import InvalidDecision, ItemBusy, ItemNotFound, NotAwaitingApproval
 from app.models.enums import Verdict
+from app.niches.overrides import sync_registry
 from app.schemas.decision import DecisionIn
 from app.security.api_keys import Principal
 
@@ -62,9 +65,13 @@ def _require_future_snooze(body: DecisionIn) -> None:
     },
 )
 async def submit_decision(
-    item_id: uuid.UUID, body: DecisionIn, principal: Writer
+    item_id: uuid.UUID,
+    body: DecisionIn,
+    principal: Writer,
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DecisionResult:
     _require_future_snooze(body)
+    await sync_registry(session)  # DB niche overrides (ADR 0009)
     try:
         outcome = await run.resume_item(item_id, principal.tenant_id, body)
     except ItemNotFound as exc:

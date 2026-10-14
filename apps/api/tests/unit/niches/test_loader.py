@@ -8,7 +8,12 @@ import pytest
 import yaml
 
 from app.core.config import REPO_ROOT
-from app.niches.loader import NicheValidationError, load_niche_file
+from app.niches.loader import (
+    NicheValidationError,
+    load_niche_file,
+    schema_errors,
+    validate_niche_data,
+)
 from app.niches.models import NicheConfig
 
 SCHEMAS = REPO_ROOT / "schemas"
@@ -141,3 +146,14 @@ def test_non_mapping_rejected(tmp_path: Path) -> None:
     path.write_text("- a\n- b\n", encoding="utf-8")
     with pytest.raises(NicheValidationError):
         load_niche_file(path, SCHEMAS)
+
+
+def test_all_errors_sorted_and_first_matches_single_error() -> None:
+    data = {"name": "x", "autonomy": "yolo", "label": 3}
+    errors = schema_errors(data, SCHEMAS)
+    pointers = [p for p, _ in errors]
+    assert pointers == sorted(pointers)
+    assert "/autonomy" in pointers and "/label" in pointers
+    with pytest.raises(NicheValidationError) as info:
+        validate_niche_data(data, "x.yaml", SCHEMAS)
+    assert info.value.json_pointer == pointers[0]

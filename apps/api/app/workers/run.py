@@ -20,6 +20,7 @@ from app.models.enums import ItemStatus, JobKind, JobStatus
 from app.models.item import Item
 from app.models.job import Job
 from app.models.status import can_transition, transition
+from app.niches.overrides import sync_registry
 from app.workers import queue
 from app.workers.handlers import HANDLERS, Handler, UnsupportedJob
 from app.workers.pipeline import prepare_batch
@@ -79,6 +80,8 @@ class Worker:
                 session, worker_id=self.worker_id, limit=self.settings.worker_batch_size
             )
             await session.commit()
+        if jobs:
+            await self._sync_niches()
         if jobs and (prepare := self._prepare) is not None:
             await self._run_prepare(prepare, jobs)
         for index, job in enumerate(jobs):
@@ -89,6 +92,11 @@ class Worker:
                 break
             await self._process(job)
         return len(jobs)
+
+    async def _sync_niches(self) -> None:
+        """Pick up DB niche overrides before the batch (one cheap query; never raises)."""
+        async with self._factory() as session:
+            await sync_registry(session)
 
     async def _run_prepare(self, prepare: Prepare, jobs: list[Job]) -> None:
         try:

@@ -48,6 +48,9 @@ async def test_defaults_are_returned_before_anything_is_saved(
         "ping_cap_per_day": 3,
         "interests": [],
         "languages": ["en"],
+        "laya_mode": None,
+        "laya_mode_by_niche": {},
+        "laya_mode_default": get_settings().laya_mode,
     }
 
 
@@ -58,7 +61,7 @@ async def test_put_then_get_round_trips_with_trimmed_interests(
     read = await api_client.get(SETTINGS, headers=bearer(admin_key))
 
     assert saved.status_code == 200
-    assert read.json() == {**VALID, "interests": ["ai", "crypto"]}
+    assert {k: read.json()[k] for k in VALID} == {**VALID, "interests": ["ai", "crypto"]}
 
 
 @pytest.mark.parametrize(

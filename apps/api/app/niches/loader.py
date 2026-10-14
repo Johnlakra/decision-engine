@@ -40,15 +40,21 @@ def _validator(schemas_dir: Path) -> Draft202012Validator:
     return Draft202012Validator(schema, registry=registry)
 
 
+def schema_errors(data: dict[str, Any], schemas_dir: Path) -> list[tuple[str, str]]:
+    """Every JSON Schema violation as ``(json_pointer, message)``, sorted by pointer (ADR 0011)."""
+    validator = _validator(schemas_dir.resolve())
+    errors = sorted(validator.iter_errors(data), key=lambda e: _pointer(e.absolute_path))
+    return [(_pointer(e.absolute_path), e.message) for e in errors]
+
+
 def validate_niche_data(data: object, file: str, schemas_dir: Path) -> NicheConfig:
     """Validate raw data against the schema, then build the model."""
     if not isinstance(data, dict):
         raise NicheValidationError(file, "", "top level must be a mapping")
-    validator = _validator(schemas_dir.resolve())
-    errors = sorted(validator.iter_errors(data), key=lambda e: _pointer(e.absolute_path))
+    errors = schema_errors(data, schemas_dir)
     if errors:
-        first = errors[0]
-        raise NicheValidationError(file, _pointer(first.absolute_path), first.message)
+        pointer, message = errors[0]
+        raise NicheValidationError(file, pointer, message)
     expected = Path(file).stem
     if data["name"] != expected:
         raise NicheValidationError(

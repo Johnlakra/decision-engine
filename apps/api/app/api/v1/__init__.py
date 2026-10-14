@@ -2,7 +2,18 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import decide, decisions, feedback, items, niches, settings, subscriptions, telegram
+from app.api.v1 import (
+    decide,
+    decisions,
+    feedback,
+    items,
+    niches,
+    settings,
+    sources,
+    stats,
+    subscriptions,
+    telegram,
+)
 
 router = APIRouter(prefix="/v1")
 router.include_router(items.router)
@@ -11,6 +22,8 @@ router.include_router(decide.router)
 router.include_router(subscriptions.router)
 router.include_router(feedback.router)
 router.include_router(niches.router)
+router.include_router(sources.router)
+router.include_router(stats.router)
 router.include_router(telegram.router)
 router.include_router(settings.router)
 
