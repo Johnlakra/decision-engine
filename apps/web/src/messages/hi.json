@@ -25,7 +25,7 @@
   "queue.confidence.high": "उच्च भरोसा",
   "queue.confidence.medium": "मध्यम भरोसा",
   "queue.confidence.low": "कम भरोसा",
-  "queue.keys": "a स्वीकार · r अस्वीकार · j/k आगे-पीछे · 1–5 चुनें · ? मदद",
+  "queue.keys": "a स्वीकार · r अस्वीकार · s टालें · e संपादित · j/k आगे-पीछे · 1–5 चुनें · ? मदद",
   "auth.signIn": "Google से साइन इन करें",
   "auth.denied": "यह Google खाता अनुमत नहीं है।",
   "queue.urgency.urgent": "जरूरी",
@@ -98,5 +98,11 @@
   "settings.field.digestHour": "सारांश का घंटा 0 से 23 के बीच होना चाहिए।",
   "settings.field.pingCap": "सूचनाओं की संख्या 50 तक पूरी संख्या होनी चाहिए।",
   "settings.field.interests": "रुचियाँ: अधिकतम 20, हर एक 60 अक्षर तक।",
-  "settings.field.languages": "कम से कम एक भाषा चुनें।"
+  "settings.field.languages": "कम से कम एक भाषा चुनें।",
+  "queue.snooze.title": "तब तक टालें",
+  "queue.snooze.laterToday": "आज बाद में",
+  "queue.snooze.tomorrow": "कल, सुबह 9:00",
+  "queue.snooze.nextWeek": "अगले हफ़्ते, सोमवार 9:00",
+  "queue.snooze.close": "बंद करें (Esc)",
+  "queue.snoozed": "टाला गया"
 }

@@ -1,8 +1,10 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchPendingItems, postDecisionBody, type ItemOut } from "@/lib/api/items";
+import { decisionErrorKey } from "@/lib/item/decision-error";
+import { fetchPendingItems, postDecisionBody, type DecisionBody, type ItemOut } from "@/lib/api/items";
 import { translate, type Locale } from "@/lib/i18n";
 import { queueActionForKey, type QueueAction } from "@/lib/queue/keys";
 import {
@@ -12,14 +14,17 @@ import {
   type PendingDecision,
   type Verdict,
 } from "@/lib/queue/undo";
+import { SNOOZE_KEYS, snoozePresets, type SnoozePresetKey } from "@/lib/queue/snooze";
 import { moveIndex, orderedOptions } from "@/lib/queue/view";
 import { QueueCard } from "./QueueCard";
+import { SnoozeMenu } from "./SnoozeMenu";
 import { UndoToast } from "./UndoToast";
 
 const QUEUE_KEY = ["queue", "pending"] as const;
 const FLUSH_INTERVAL_MS = 500;
 const REFRESH_INTERVAL_MS = 30_000;
 const URGENT_FROM = 2;
+const ALREADY_HANDLED_KEY = "item.errors.alreadyHandled";
 
 interface QueueViewProps {
   readonly locale: Locale;
@@ -33,9 +38,17 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
+function decisionBody(due: PendingDecision): DecisionBody {
+  if (due.verdict === "snooze") {
+    return { verdict: "snooze", snooze_until: due.snoozeUntil };
+  }
+  return due.option ? { verdict: due.verdict, option: due.option } : { verdict: due.verdict };
+}
+
 export function QueueView({ locale }: QueueViewProps) {
   const t = (key: string, values?: Record<string, string | number>) => translate(locale, key, values);
   const queryClient = useQueryClient();
+  const router = useRouter();
   const query = useQuery({
     queryKey: QUEUE_KEY,
     queryFn: fetchPendingItems,
@@ -48,6 +61,7 @@ export function QueueView({ locale }: QueueViewProps) {
   const [focus, setFocus] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
 
   const items: ItemOut[] = (query.data?.data ?? []).filter(
     (item) => !pending.some((entry) => entry.itemId === item.id),
@@ -57,11 +71,31 @@ export function QueueView({ locale }: QueueViewProps) {
   const latest = pending[pending.length - 1];
   const urgentCount = items.filter((item) => (item.urgency ?? 0) >= URGENT_FROM).length;
 
-  const holdDecision = useCallback((itemId: string, verdict: Verdict, option?: string) => {
-    setFailed(false);
-    pendingRef.current = scheduleDecision(pendingRef.current, itemId, verdict, Date.now(), option);
-    setPending(pendingRef.current);
-  }, []);
+  const holdDecision = useCallback(
+    (itemId: string, verdict: Verdict, option?: string, snoozeUntil?: string) => {
+      setFailed(false);
+      pendingRef.current = scheduleDecision(
+        pendingRef.current,
+        itemId,
+        verdict,
+        Date.now(),
+        option,
+        snoozeUntil,
+      );
+      setPending(pendingRef.current);
+    },
+    [],
+  );
+
+  const pickSnooze = useCallback(
+    (preset: SnoozePresetKey) => {
+      setSnoozeOpen(false);
+      if (focused) {
+        holdDecision(focused.id, "snooze", undefined, snoozePresets(new Date())[preset]);
+      }
+    },
+    [focused, holdDecision],
+  );
 
   const undo = useCallback((itemId: string) => {
     pendingRef.current = cancelDecision(pendingRef.current, itemId);
@@ -78,11 +112,13 @@ export function QueueView({ locale }: QueueViewProps) {
         inFlight.current.add(due.itemId);
         pendingRef.current = cancelDecision(pendingRef.current, due.itemId);
         setPending(pendingRef.current);
-        postDecisionBody(
-          due.itemId,
-          due.option ? { verdict: due.verdict, option: due.option } : { verdict: due.verdict },
-        )
-          .catch(() => setFailed(true))
+        postDecisionBody(due.itemId, decisionBody(due))
+          .catch((error: unknown) => {
+            // 409: another client already handled the item. Drop the card quietly (ADR 0007).
+            if (decisionErrorKey(error) !== ALREADY_HANDLED_KEY) {
+              setFailed(true);
+            }
+          })
           .finally(() => {
             inFlight.current.delete(due.itemId);
             void queryClient.invalidateQueries({ queryKey: QUEUE_KEY });
@@ -129,17 +165,29 @@ export function QueueView({ locale }: QueueViewProps) {
           return;
         }
         case "snooze":
+          setSnoozeOpen(true);
+          return;
         case "edit":
-          // Not in this slice: snooze needs a time picker and edit needs the item detail view.
+          router.push(`/items/${focused.id}`);
           return;
       }
     },
-    [focused, holdDecision, items.length, safeFocus],
+    [focused, holdDecision, items.length, router, safeFocus],
   );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (snoozeOpen) {
+        event.preventDefault();
+        const preset = SNOOZE_KEYS[event.key];
+        if (preset) {
+          pickSnooze(preset);
+        } else if (event.key === "Escape") {
+          setSnoozeOpen(false);
+        }
         return;
       }
       const action = queueActionForKey(event.key);
@@ -150,7 +198,7 @@ export function QueueView({ locale }: QueueViewProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [runAction]);
+  }, [pickSnooze, runAction, snoozeOpen]);
 
   if (query.isPending) {
     return <p className="p-6 text-muted">{t("queue.loading")}</p>;
@@ -214,8 +262,15 @@ export function QueueView({ locale }: QueueViewProps) {
         <p className="mt-6 rounded-[8px] border border-border p-3 text-[13px]">{t("queue.keys")}</p>
       ) : null}
 
+      {snoozeOpen ? (
+        <SnoozeMenu locale={locale} onPick={pickSnooze} onClose={() => setSnoozeOpen(false)} />
+      ) : null}
+
       {latest ? (
-        <UndoToast label={t("queue.done")} locale={locale} onUndo={() => undo(latest.itemId)} />
+        <UndoToast
+          label={t(latest.verdict === "snooze" ? "queue.snoozed" : "queue.done")} locale={locale}
+          onUndo={() => undo(latest.itemId)}
+        />
       ) : null}
     </div>
   );

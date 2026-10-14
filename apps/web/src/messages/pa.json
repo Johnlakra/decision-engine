@@ -25,7 +25,7 @@
   "queue.confidence.high": "ਉੱਚਾ ਭਰੋਸਾ",
   "queue.confidence.medium": "ਦਰਮਿਆਨਾ ਭਰੋਸਾ",
   "queue.confidence.low": "ਘੱਟ ਭਰੋਸਾ",
-  "queue.keys": "a ਮਨਜ਼ੂਰ · r ਰੱਦ · j/k ਅੱਗੇ-ਪਿੱਛੇ · 1–5 ਚੁਣੋ · ? ਮਦਦ",
+  "queue.keys": "a ਮਨਜ਼ੂਰ · r ਰੱਦ · s ਟਾਲੋ · e ਸੋਧ · j/k ਅੱਗੇ-ਪਿੱਛੇ · 1–5 ਚੁਣੋ · ? ਮਦਦ",
   "auth.signIn": "Google ਨਾਲ ਸਾਈਨ ਇਨ ਕਰੋ",
   "auth.denied": "ਇਹ Google ਖਾਤਾ ਇਜਾਜ਼ਤ ਪ੍ਰਾਪਤ ਨਹੀਂ ਹੈ।",
   "queue.urgency.urgent": "ਜ਼ਰੂਰੀ",
@@ -98,5 +98,11 @@
   "settings.field.digestHour": "ਸਾਰ ਦਾ ਘੰਟਾ 0 ਤੋਂ 23 ਵਿਚਕਾਰ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ।",
   "settings.field.pingCap": "ਸੂਚਨਾਵਾਂ ਦੀ ਗਿਣਤੀ 50 ਤੱਕ ਪੂਰਾ ਅੰਕ ਹੋਣੀ ਚਾਹੀਦੀ ਹੈ।",
   "settings.field.interests": "ਦਿਲਚਸਪੀਆਂ: ਵੱਧ ਤੋਂ ਵੱਧ 20, ਹਰੇਕ 60 ਅੱਖਰਾਂ ਤੱਕ।",
-  "settings.field.languages": "ਘੱਟੋ-ਘੱਟ ਇੱਕ ਭਾਸ਼ਾ ਚੁਣੋ।"
+  "settings.field.languages": "ਘੱਟੋ-ਘੱਟ ਇੱਕ ਭਾਸ਼ਾ ਚੁਣੋ।",
+  "queue.snooze.title": "ਇੰਨੇ ਸਮੇਂ ਤੱਕ ਟਾਲੋ",
+  "queue.snooze.laterToday": "ਅੱਜ ਬਾਅਦ ਵਿੱਚ",
+  "queue.snooze.tomorrow": "ਕੱਲ੍ਹ, ਸਵੇਰੇ 9:00",
+  "queue.snooze.nextWeek": "ਅਗਲੇ ਹਫ਼ਤੇ, ਸੋਮਵਾਰ 9:00",
+  "queue.snooze.close": "ਬੰਦ ਕਰੋ (Esc)",
+  "queue.snoozed": "ਟਾਲਿਆ ਗਿਆ"
 }

@@ -6,12 +6,14 @@
 
 export const UNDO_WINDOW_MS = 10_000;
 
-export type Verdict = "approve" | "reject";
+export type Verdict = "approve" | "reject" | "snooze";
 
 export interface PendingDecision {
   readonly itemId: string;
   readonly verdict: Verdict;
   readonly option: string | undefined;
+  /** ISO 8601 UTC; set only when the verdict is snooze. */
+  readonly snoozeUntil?: string;
   readonly dueAt: number;
 }
 
@@ -21,8 +23,15 @@ export function scheduleDecision(
   verdict: Verdict,
   now: number,
   option?: string,
+  snoozeUntil?: string,
 ): PendingDecision[] {
-  const next: PendingDecision = { itemId, verdict, option, dueAt: now + UNDO_WINDOW_MS };
+  const next: PendingDecision = {
+    itemId,
+    verdict,
+    option,
+    dueAt: now + UNDO_WINDOW_MS,
+    ...(snoozeUntil ? { snoozeUntil } : {}),
+  };
   return [...pending.filter((entry) => entry.itemId !== itemId), next];
 }
 

@@ -25,7 +25,7 @@
   "queue.confidence.high": "High confidence",
   "queue.confidence.medium": "Medium confidence",
   "queue.confidence.low": "Low confidence",
-  "queue.keys": "a approve · r reject · j/k move · 1–5 choose · ? help",
+  "queue.keys": "a approve · r reject · s snooze · e edit · j/k move · 1–5 choose · ? help",
   "auth.signIn": "Sign in with Google",
   "auth.denied": "This Google account is not allowed.",
   "queue.urgency.urgent": "Urgent",
@@ -98,5 +98,11 @@
   "settings.field.digestHour": "Digest hour must be 0 to 23.",
   "settings.field.pingCap": "Pings per day must be a whole number up to 50.",
   "settings.field.interests": "Interests: at most 20, each up to 60 characters.",
-  "settings.field.languages": "Choose at least one language."
+  "settings.field.languages": "Choose at least one language.",
+  "queue.snooze.title": "Snooze until",
+  "queue.snooze.laterToday": "Later today",
+  "queue.snooze.tomorrow": "Tomorrow, 9:00",
+  "queue.snooze.nextWeek": "Next week, Monday 9:00",
+  "queue.snooze.close": "Close (Esc)",
+  "queue.snoozed": "Snoozed"
 }
