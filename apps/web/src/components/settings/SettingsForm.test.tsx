@@ -99,7 +99,22 @@ describe("SettingsForm", () => {
       ping_cap_per_day: 3,
       interests: ["ai", "funding"],
       languages: ["en", "hi", "pa"],
+      laya_mode: null,
     });
+  });
+
+  it("offers the server default plus off and shadow, and saves the chosen mode", async () => {
+    await renderForm();
+    const select = screen.getByLabelText("Laya triage mode") as HTMLSelectElement;
+
+    expect(select.value).toBe("env");
+    expect([...select.options].map((option) => option.value)).toEqual(["env", "off", "shadow"]);
+    fireEvent.change(select, { target: { value: "shadow" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await screen.findByRole("status");
+    const [call] = putCalls();
+    expect(JSON.parse((call?.[1].body as string) ?? "{}")).toMatchObject({ laya_mode: "shadow" });
   });
 
   it("shows a generic error when the save is rejected", async () => {

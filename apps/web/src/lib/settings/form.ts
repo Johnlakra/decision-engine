@@ -13,6 +13,9 @@ export const MAX_INTERESTS = 20;
 export const MAX_INTEREST_CHARS = 60;
 export const MAX_PING_CAP = 50;
 
+/** "env" = no stored mode, so the server's LAYA_MODE applies. "on" is refused by the API, so it is not offered. */
+export type LayaChoice = "env" | "off" | "shadow";
+
 export interface SettingsForm {
   readonly quietFrom: string;
   readonly quietTo: string;
@@ -20,6 +23,7 @@ export interface SettingsForm {
   readonly pingCap: string;
   readonly interests: string;
   readonly languages: readonly Language[];
+  readonly layaMode: LayaChoice;
 }
 
 export type SettingsField = "quiet" | "digestHour" | "pingCap" | "interests" | "languages";
@@ -90,6 +94,7 @@ export function formToPayload(form: SettingsForm): SettingsFormResult {
       ping_cap_per_day: cap,
       interests,
       languages: [...form.languages],
+      laya_mode: form.layaMode === "env" ? null : form.layaMode,
     },
   };
 }
@@ -102,5 +107,10 @@ export function formFromSettings(settings: SettingsPayload): SettingsForm {
     pingCap: String(settings.ping_cap_per_day),
     interests: settings.interests.join(", "),
     languages: settings.languages,
+    layaMode: toLayaChoice(settings.laya_mode),
   };
+}
+
+function toLayaChoice(stored: SettingsPayload["laya_mode"]): LayaChoice {
+  return stored === "off" || stored === "shadow" ? stored : "env";
 }

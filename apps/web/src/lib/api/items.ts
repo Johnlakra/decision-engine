@@ -8,7 +8,7 @@ export type ItemPage = components["schemas"]["ItemPage"];
 export type ActivityOut = components["schemas"]["ActivityOut"];
 export type DecisionBody = components["schemas"]["DecisionIn"];
 
-export const PENDING_LIMIT = 50;
+export const PENDING_LIMIT = 100;
 
 export function fetchPendingItems(): Promise<ItemPage> {
   return requestJson<ItemPage>("GET", `/items?status=awaiting_approval&limit=${PENDING_LIMIT}`);

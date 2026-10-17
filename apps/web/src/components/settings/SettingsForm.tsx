@@ -9,6 +9,7 @@ import {
   formFromSettings,
   formToPayload,
   MAX_PING_CAP,
+  type LayaChoice,
   type Language,
   type SettingsForm as FormState,
   type SettingsPayload,
@@ -20,6 +21,11 @@ const LANGUAGES: readonly { readonly code: Language; readonly name: string }[] =
   { code: "en", name: "English" },
   { code: "hi", name: "हिन्दी" },
   { code: "pa", name: "ਪੰਜਾਬੀ" },
+];
+const LAYA_CHOICES: readonly { readonly value: LayaChoice; readonly labelKey: string }[] = [
+  { value: "env", labelKey: "settings.laya.env" },
+  { value: "off", labelKey: "settings.laya.off" },
+  { value: "shadow", labelKey: "settings.laya.shadow" },
 ];
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const CONTROL = "mt-1 w-full rounded-[8px] border border-border bg-surface p-2 text-[14px]";
@@ -123,6 +129,26 @@ function SettingsEditor({ initial, locale }: { readonly initial: FormState; read
         {t("settings.digest")}
         <select className={CONTROL} value={form.digestHour} onChange={(e) => setForm({ ...form, digestHour: e.target.value })}>
           {hourOptions()}
+        </select>
+      </label>
+
+      <label className="block text-[13px] font-medium">
+        {t("settings.laya")}
+        <select
+          className={CONTROL}
+          value={form.layaMode}
+          onChange={(e) => {
+            const choice = LAYA_CHOICES.find((option) => option.value === e.target.value);
+            if (choice) {
+              setForm({ ...form, layaMode: choice.value });
+            }
+          }}
+        >
+          {LAYA_CHOICES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {t(option.labelKey)}
+            </option>
+          ))}
         </select>
       </label>
 

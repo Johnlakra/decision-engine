@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { decisionErrorKey } from "@/lib/item/decision-error";
 import { fetchPendingItems, postDecisionBody, type DecisionBody, type ItemOut } from "@/lib/api/items";
@@ -19,9 +19,18 @@ import {
 } from "@/lib/queue/undo";
 import { SNOOZE_KEYS, snoozePresets, type SnoozePresetKey } from "@/lib/queue/snooze";
 import { moveIndex, orderedOptions } from "@/lib/queue/view";
+import { sortQueue } from "@/lib/queue/order";
+import {
+  applyFilters,
+  filterChoices,
+  filterFromParams,
+  paramsWithFilter,
+  type QueueFilter,
+} from "@/lib/queue/filters";
 import { CommandPalette } from "./CommandPalette";
 import type { PaletteCommandId } from "@/lib/queue/commands";
 import { BulkBar } from "./BulkBar";
+import { FilterChips } from "./FilterChips";
 import { QueueCard } from "./QueueCard";
 import { SnoozeMenu } from "./SnoozeMenu";
 import { UndoToast } from "./UndoToast";
@@ -73,6 +82,7 @@ export function QueueView({ locale }: QueueViewProps) {
   const t = (key: string, values?: Record<string, string | number>) => translate(locale, key, values);
   const queryClient = useQueryClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const query = useQuery({
     queryKey: QUEUE_KEY,
     queryFn: fetchPendingItems,
@@ -89,9 +99,16 @@ export function QueueView({ locale }: QueueViewProps) {
   const [bulkMode, setBulkMode] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
-  const items: ItemOut[] = (query.data?.data ?? []).filter(
+  const unfiltered: ItemOut[] = (query.data?.data ?? []).filter(
     (item) => !pending.some((entry) => entry.itemId === item.id),
   );
+  const filter = filterFromParams(searchParams);
+  const items = sortQueue(applyFilters(unfiltered, filter));
+  const choices = filterChoices(unfiltered);
+  const changeFilter = (next: QueueFilter) => {
+    const search = paramsWithFilter(searchParams, next).toString();
+    router.replace(search ? `/queue?${search}` : "/queue");
+  };
   const safeFocus = items.length === 0 ? 0 : Math.min(focus, items.length - 1);
   const focused = items[safeFocus];
   const latest = pending[pending.length - 1];
@@ -326,6 +343,8 @@ export function QueueView({ locale }: QueueViewProps) {
           {t("queue.bulk.toggle")}
         </button>
       </header>
+
+      <FilterChips locale={locale} choices={choices} filter={filter} onChange={changeFilter} />
 
       {bulkMode ? (
         <BulkBar locale={locale} count={buildBulkBatch(items, selected).length} onApprove={approveSelected} onExit={exitBulk} />

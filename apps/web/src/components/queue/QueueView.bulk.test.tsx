@@ -5,12 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UNDO_WINDOW_MS } from "@/lib/queue/undo";
 import { QueueView } from "./QueueView";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 function make(id: string, title: string, urgency: number, risk = "none") {
   return {
     id,
     source: "rss",
+    created_at: `2026-10-0${id.slice(1)}T00:00:00Z`,
     urgency,
     risk,
     content: { title },
@@ -52,7 +56,7 @@ async function renderQueue(): Promise<void> {
       <QueueView locale="en" />
     </QueryClientProvider>,
   );
-  await screen.findByRole("heading", { name: "First" });
+  await screen.findByRole("heading", { name: "Urgent one" });
 }
 
 beforeEach(() => {
@@ -104,6 +108,7 @@ describe("bulk mode", () => {
   it("space toggles the focused eligible card and updates the count", async () => {
     await renderQueue();
     press("b");
+    press("j");
     press(" ");
     expect(screen.getByRole("button", { name: "Approve recommended (1)" })).toBeTruthy();
     press(" ");
@@ -113,9 +118,6 @@ describe("bulk mode", () => {
   it("space on an ineligible focused card selects nothing", async () => {
     await renderQueue();
     press("b");
-    press("j");
-    press("j");
-    press("j");
     press(" ");
     expect(screen.getByRole("button", { name: "Approve recommended (0)" })).toBeTruthy();
   });
@@ -134,8 +136,8 @@ describe("bulk mode", () => {
 
     const sent = posts().map(([url, init]) => [url, JSON.parse(String(init.body))]);
     expect(sent).toEqual([
-      ["/api/v1/items/i1/decision", { verdict: "approve", option: "A" }],
       ["/api/v1/items/i2/decision", { verdict: "approve", option: "A" }],
+      ["/api/v1/items/i1/decision", { verdict: "approve", option: "A" }],
       ["/api/v1/items/i3/decision", { verdict: "approve", option: "B" }],
     ]);
   });
@@ -153,7 +155,7 @@ describe("bulk mode", () => {
 
     expect(posts()).toHaveLength(0);
     expect(screen.queryByRole("status")).toBeNull();
-    expect(screen.getByRole("heading", { name: "First" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Urgent one" })).toBeTruthy();
   });
 
   it("a 409 on one item drops only that card with no error banner", async () => {

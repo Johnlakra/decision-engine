@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formFromSettings, formToPayload, parseInterests, type SettingsForm } from "./form";
+import { formFromSettings, formToPayload, parseInterests, type SettingsForm, type SettingsPayload } from "./form";
 
 const VALID: SettingsForm = {
   quietFrom: "23",
@@ -8,6 +8,7 @@ const VALID: SettingsForm = {
   pingCap: "5",
   interests: " ai ,  crypto, ",
   languages: ["en", "pa"],
+  layaMode: "env",
 };
 
 describe("formToPayload", () => {
@@ -20,7 +21,18 @@ describe("formToPayload", () => {
         ping_cap_per_day: 5,
         interests: ["ai", "crypto"],
         languages: ["en", "pa"],
+        laya_mode: null,
       },
+    });
+  });
+
+  it("sends the chosen Laya mode and never 'on'", () => {
+    const result = formToPayload({ ...VALID, layaMode: "shadow" });
+
+    expect(result).toMatchObject({ ok: true, payload: { laya_mode: "shadow" } });
+    expect(formToPayload({ ...VALID, layaMode: "off" })).toMatchObject({
+      ok: true,
+      payload: { laya_mode: "off" },
     });
   });
 
@@ -64,6 +76,7 @@ describe("formFromSettings", () => {
       ping_cap_per_day: 3,
       interests: ["ai", "crypto"],
       languages: ["en"],
+      laya_mode: "shadow",
     });
 
     expect(form).toEqual({
@@ -73,6 +86,14 @@ describe("formFromSettings", () => {
       pingCap: "3",
       interests: "ai, crypto",
       languages: ["en"],
+      layaMode: "shadow",
     });
+  });
+
+  it("shows the env default when no mode is stored or the stored mode is 'on'", () => {
+    const base: SettingsPayload = { quiet_hours: [22, 7], digest_hour: 8, ping_cap_per_day: 3, interests: [], languages: ["en"] };
+
+    expect(formFromSettings({ ...base, laya_mode: null }).layaMode).toBe("env");
+    expect(formFromSettings({ ...base, laya_mode: "on" }).layaMode).toBe("env");
   });
 });

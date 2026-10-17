@@ -6,7 +6,11 @@ import { UNDO_WINDOW_MS } from "@/lib/queue/undo";
 import { QueueView } from "./QueueView";
 
 const routerPush = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: routerPush }) }));
+const routerReplace = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPush, replace: routerReplace }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const FIRST_ID = "0192f0c2-7a52-7c1e-9d3b-1f2a3b4c5d6e";
 const makeItem = (id: string, title: string) => ({
